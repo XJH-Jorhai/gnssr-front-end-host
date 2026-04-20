@@ -265,7 +265,7 @@
                             </Grid>
 
                             <TextBlock Margin="0,18,0,6" FontWeight="SemiBold" Text="Ring Buffer 占用" />
-                            <ProgressBar Height="10" Maximum="100" Value="{Binding RingBufferUsagePercent}" />
+                            <ProgressBar Height="10" Maximum="100" Value="{Binding RingBufferUsagePercent, Mode=OneWay}" />
                         </StackPanel>
                     </ui:Card>
                 </Grid>

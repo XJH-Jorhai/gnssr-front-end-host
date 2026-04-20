@@ -25,5 +25,14 @@ if errorlevel 1 (
 )
 
 echo [3/3] Launching GNSSR Host UI...
-start "" ".\src\GNSSR.Host.UI\bin\Debug\net8.0-windows\GNSSR.Host.UI.exe"
+".\src\GNSSR.Host.UI\bin\Debug\net8.0-windows\GNSSR.Host.UI.exe"
+if errorlevel 1 (
+    echo.
+    echo The application exited with an error code.
+    echo If a startup error occurred, a dialog or startup-error.log should have appeared.
+    echo.
+    pause
+    exit /b 1
+)
+
 exit /b 0
