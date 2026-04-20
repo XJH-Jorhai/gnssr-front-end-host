@@ -1,0 +1,710 @@
+spec_metadata:
+  name: GNSSR_Windows_Host_Computer_Design_Spec
+  version: 1.0.0
+  language: zh-CN
+  target_consumer: 上位机设计Agent
+  purpose: >
+    为 Windows 平台 GNSS-R 接收系统上位机提供一份可直接用于软件设计与实现的输入规格。
+    本规格在已有 FX3 USB 数据链路规范和前端串口控制规范基础上，补充推荐的软件架构、
+    技术选型、模块划分、线程模型、状态机、UI 组织方式、测试项与验收标准。
+  source_basis:
+    - file: fx3_host_interface_spec_v1.yaml
+      note: EP0 vendor command + bulk IN 数据流规范
+    - file: GNSSR_Frontend_Host_Interface_v1.yaml
+      note: USART1 经 CYUSB3014 桥接到 STM32G031 的控制与状态协议
+  authoring_intent: >
+    当前阶段仅服务于毕业设计调试与采集，不追求复杂数据分析与在线反演，
+    首要目标是稳定连接、状态可视、可靠启停采集、连续写盘和基础错误恢复。
+
+project_context:
+  project_name: 基于GNSS-R和无人机的土壤遥测系统设计
+  host_platform:
+    os: Windows 10 or Windows 11
+    architecture: x64
+  mission_profile:
+    - 检测 FX3 设备是否连接
+    - 检测前端控制链路是否连接
+    - 显示模拟前端关键状态
+    - 通过 EP0 命令开始数据流
+    - 通过 EP0 命令停止数据流
+    - 将接收到的原始字节流保存为 .bin 文件
+    - 文件名按“姓名 + 时间戳”自动命名
+  non_goals_for_mvp:
+    - 不要求实时 DDM 生成
+    - 不要求在线土壤湿度反演
+    - 不要求复杂频谱/波形实时绘图
+    - 不要求 MAVLink 2 解析
+    - 不要求多设备并发采集
+    - 不要求跨平台
+
+design_decision:
+  recommended_primary_stack:
+    language: C#
+    runtime: .NET 8
+    ui_framework: WPF
+    ui_pattern: MVVM
+    usb_library_priority:
+      - CyUSB.NET 或 Cypress/Infineon FX3 官方主机库
+      - 若官方库不可用，则使用 WinUSB/libusb 的 .NET 封装
+    serial_library: System.IO.Ports
+    logging:
+      library: Serilog
+      outputs:
+        - rolling text log
+        - debug console
+    json_library: System.Text.Json
+    optional_mvvm_library: CommunityToolkit.Mvvm
+  why_this_stack:
+    - Windows 原生桌面软件生态成熟，最适合仪器控制与数据采集类应用
+    - C# 对串口、文件 I/O、异步任务、取消令牌、异常处理支持完善
+    - WPF 适合状态面板、日志面板、按钮控制、采集信息展示
+    - MVVM 有利于把设备通信、采集状态、UI 显示解耦
+    - 与 Python 相比，更适合作为最终稳定采集工具
+    - 与 C++/Qt 相比，开发成本更低，更适合当前毕业设计范围
+
+mvp_scope:
+  must_have:
+    - FX3 USB 设备枚举与连接
+    - EP0 GET_STATUS
+    - EP0 START_STREAM
+    - EP0 STOP_STREAM
+    - 可选 EP0 RESET_STREAM
+    - Bulk IN 异步接收
+    - 环形缓冲区
+    - 独立写盘线程
+    - 前端串口打开/关闭
+    - 串口 HELLO
+    - 串口 GET_STATUS
+    - UI 状态显示
+    - 自动生成 .bin 文件名
+    - 可选生成同名 .json metadata
+    - 错误日志
+  should_have:
+    - 周期性轮询 FX3 status
+    - 周期性轮询前端 status
+    - 基本错误恢复
+    - 采集中断后文件标记为 incomplete
+    - 手动刷新设备列表
+  nice_to_have:
+    - RESET_FRONTEND
+    - LOAD_DEFAULT_PROFILE
+    - SET_CENTER_FREQ
+    - async event 解析
+    - 保存最近一次输出目录
+    - 最近采集记录列表
+  excluded_for_now:
+    - 数据在线解复用显示 chA/chB
+    - 实时数据预览
+    - 实时频谱
+    - 远程控制
+    - 自动上传云端
+    - 数据库
+
+external_interfaces:
+  usb_fx3:
+    device_name: CYUSB3014 FX3
+    class: vendor-specific
+    vid: "0x04B4"
+    pid: "0x00F1"
+    interface_count: 1
+    control_plane:
+      transport: EP0 vendor control transfer
+      commands:
+        START_STREAM:
+          bRequest: "0xB0"
+          direction: host_to_device
+        STOP_STREAM:
+          bRequest: "0xB1"
+          direction: host_to_device
+        RESET_STREAM:
+          bRequest: "0xB2"
+          direction: host_to_device
+        GET_STATUS:
+          bRequest: "0xB3"
+          direction: device_to_host
+    status_struct:
+      name: CyFxAppStatus_t
+      endianness: little-endian
+      fields:
+        - { name: active, type: uint8, meaning: "1=running, 0=stopped" }
+        - { name: usbSpeed, type: uint8, meaning: "1=FS, 2=HS, 3=SS" }
+        - { name: reserved0, type: uint8 }
+        - { name: reserved1, type: uint8 }
+        - { name: prodEventCount, type: uint32, meaning: DMA producer event count }
+        - { name: dmaErrorCount, type: uint32, meaning: DMA error count }
+    data_plane:
+      endpoint: "0x81"
+      type: bulk_in
+      stream_type: continuous_raw_byte_stream
+      framing:
+        header: false
+        footer: false
+        timestamp: false
+        sequence_number: false
+        packet_boundary_semantics: false
+      byte_mapping:
+        low_nibble: MAX2769_A_D3_D0
+        high_nibble: MAX2769_B_D3_D0
+      throughput:
+        sample_clock_hz: 26000000
+        bytes_per_sample_clock: 1
+        bytes_per_sec: 26000000
+        mb_per_sec_approx: 26
+      host_requirement:
+        sustained_write_mb_per_sec_min: 30
+      critical_assumptions:
+        - 不得将每个 USB packet 视为逻辑帧
+        - 不得按 packet 边界解析业务数据
+        - 不得采用单线程“接收后立即同步写盘”的实现
+  frontend_serial:
+    path: PC -> USB -> CYUSB3014 -> UART bridge -> STM32G031 USART1
+    uart:
+      baudrate: 115200
+      data_bits: 8
+      stop_bits: 1
+      parity: none
+      flow_control: none
+      byte_order: little_endian
+    frame_format:
+      sof: [0x55, 0xAA]
+      fields:
+        - SOF
+        - VER
+        - TYPE
+        - CMD
+        - SEQ
+        - LEN
+        - PAYLOAD
+        - CRC16
+      crc:
+        type: CRC16-IBM
+        init: "0xFFFF"
+        poly: "0xA001"
+        range: VER_to_PAYLOAD
+    message_types:
+      host_request: 0x01
+      device_response: 0x02
+      device_async_event: 0x03
+    response_wrapper:
+      fields:
+        - { name: status, type: u8, values: { 0: success, 1: failure } }
+        - { name: err_code, type: u8 }
+        - { name: reserved, type: "u8[2]" }
+    required_commands_for_mvp:
+      - HELLO
+      - GET_STATUS
+      - PING
+    optional_commands_for_future:
+      - SET_CENTER_FREQ
+      - LOAD_DEFAULT_PROFILE
+      - RESET_FRONTEND
+    hello_requirement: 打开串口后必须先发送 HELLO，再进行任何控制命令
+    get_status_fields:
+      - { name: pll_locked, type: u8, values: { 0: unlocked, 1: locked } }
+      - { name: antenna_ok, type: u8, values: { 0: fault, 1: normal } }
+      - { name: active_profile, type: u8 }
+      - { name: current_freq_hz, type: u32 }
+      - { name: tcxo_freq_hz, type: u32 }
+      - { name: last_error, type: u16 }
+    async_events_optional:
+      cmd: 0x80
+      name: STATUS_EVENT
+      event_codes:
+        "0x01": pll_lock_state_changed
+        "0x02": antenna_state_changed
+        "0x03": config_write_complete
+        "0x04": config_write_failed
+
+system_architecture:
+  style: 分层 + MVVM + 事件驱动 + 面向设备会话
+  principles:
+    - UI 层不直接操作 USB 和串口细节
+    - 设备通信与业务状态分离
+    - 采集链路与写盘链路解耦
+    - 任何耗时 I/O 不得阻塞 UI 线程
+    - 所有会话支持取消与有序关闭
+    - 所有状态变化都可写日志
+  solution_structure:
+    - project: GNSSR.Host.UI
+      responsibility:
+        - WPF 界面
+        - ViewModel
+        - 数据绑定
+        - 用户操作命令
+    - project: GNSSR.Host.Core
+      responsibility:
+        - 域模型
+        - 状态机
+        - 采集会话抽象
+        - 接口定义
+    - project: GNSSR.Host.Infrastructure.USB
+      responsibility:
+        - FX3 枚举
+        - EP0 控制
+        - Bulk IN 异步读
+        - FX3 状态解析
+    - project: GNSSR.Host.Infrastructure.Serial
+      responsibility:
+        - 串口管理
+        - 二进制协议编解码
+        - CRC 计算
+        - 前端命令/响应解析
+    - project: GNSSR.Host.Infrastructure.Storage
+      responsibility:
+        - 文件名生成
+        - bin 写盘
+        - metadata json 写出
+        - 目录管理
+    - project: GNSSR.Host.Infrastructure.Logging
+      responsibility:
+        - Serilog 初始化
+        - 统一日志接口
+    - project: GNSSR.Host.Tests
+      responsibility:
+        - 单元测试
+        - 协议解析测试
+        - 集成测试桩
+
+domain_model:
+  device_session:
+    description: 表示一次上位机与硬件系统的总体会话
+    fields:
+      - usb_connection_state
+      - serial_connection_state
+      - frontend_status
+      - fx3_status
+      - capture_state
+      - current_output_file
+      - current_metadata_file
+      - last_error
+  frontend_status:
+    fields:
+      - pll_locked
+      - antenna_ok
+      - active_profile
+      - current_freq_hz
+      - tcxo_freq_hz
+      - last_error
+      - protocol_ver
+      - fw_version
+      - hw_version
+  fx3_status:
+    fields:
+      - active
+      - usb_speed
+      - prod_event_count
+      - dma_error_count
+  capture_session:
+    fields:
+      - session_id
+      - operator_name
+      - output_directory
+      - base_filename
+      - bin_path
+      - json_path
+      - start_time
+      - stop_time
+      - bytes_received
+      - bytes_written
+      - ring_buffer_peak
+      - is_incomplete
+      - stop_reason
+
+recommended_classes:
+  ui:
+    - MainWindow
+    - MainViewModel
+    - DevicePanelViewModel
+    - FrontendStatusViewModel
+    - CaptureViewModel
+    - LogViewModel
+  core:
+    - DeviceSessionManager
+    - CaptureSessionManager
+    - AppStateStore
+    - FileNamingPolicy
+    - CaptureStatistics
+  usb:
+    - Fx3UsbService
+    - Fx3CommandClient
+    - Fx3StatusParser
+    - BulkInStreamReader
+  serial:
+    - SerialPortManager
+    - FrontendProtocolCodec
+    - FrontendController
+    - FrontendStatusParser
+    - Crc16Ibm
+  storage:
+    - RingBufferManager
+    - DiskWriterService
+    - MetadataWriter
+  logging:
+    - LogService
+  utilities:
+    - ClockService
+    - RetryPolicy
+    - CancellationFactory
+
+state_machine:
+  app_states:
+    - Idle
+    - Discovering
+    - DeviceReady
+    - FrontendReady
+    - ReadyToCapture
+    - StartingCapture
+    - Capturing
+    - StoppingCapture
+    - Error
+  transitions:
+    - from: Idle
+      to: Discovering
+      trigger: refresh_devices
+    - from: Discovering
+      to: DeviceReady
+      trigger: fx3_connected
+    - from: DeviceReady
+      to: FrontendReady
+      trigger: serial_open_success_and_hello_success
+    - from: FrontendReady
+      to: ReadyToCapture
+      trigger: status_poll_success
+    - from: ReadyToCapture
+      to: StartingCapture
+      trigger: user_click_start
+    - from: StartingCapture
+      to: Capturing
+      trigger: start_stream_success_and_bulk_reader_running
+    - from: Capturing
+      to: StoppingCapture
+      trigger: user_click_stop_or_error
+    - from: StoppingCapture
+      to: ReadyToCapture
+      trigger: stop_stream_success_and_file_closed
+    - from: any
+      to: Error
+      trigger: unrecoverable_exception
+
+threading_model:
+  mandatory_background_workers:
+    - name: usb_receive_worker
+      responsibility:
+        - 提交多个异步 bulk IN 读请求
+        - 将收到的数据块推入环形缓冲区
+        - 统计 bytes_received
+    - name: disk_writer_worker
+      responsibility:
+        - 从缓冲区取出数据块
+        - 顺序写入 .bin 文件
+        - 定期 flush
+        - 统计 bytes_written
+    - name: status_monitor_worker
+      responsibility:
+        - 定期查询 FX3 GET_STATUS
+        - 定期查询 frontend GET_STATUS
+        - 更新共享状态
+        - 发现错误并告警
+  ui_thread:
+    rules:
+      - 不得直接执行阻塞 I/O
+      - 只做绑定更新和用户交互
+  cancellation:
+    strategy: CancellationToken per session
+    shutdown_order:
+      - 停止接受新的 bulk read
+      - 发 STOP_STREAM
+      - 排空 ring buffer
+      - 关闭 writer
+      - 写 metadata
+      - 关闭设备连接
+  recommended_polling_intervals_ms:
+    fx3_status: 500
+    frontend_status_idle: 1000
+    frontend_status_capturing: 1000
+    ping_idle_keepalive: 1000
+
+buffering_and_storage:
+  ring_buffer:
+    implementation_preference:
+      - System.Threading.Channels
+      - BlockingCollection
+      - 自定义 bounded producer-consumer queue
+    requirements:
+      - 有容量上限
+      - 可统计当前占用与峰值
+      - 满时必须记录 overflow 错误
+      - 不可无限增长
+  data_chunk_policy:
+    recommendation:
+      usb_read_transfer_size_bytes: 1048576
+      queue_chunk_size_bytes: 1048576
+    note: >
+      实际值可根据官方库接口与系统稳定性调整，但必须避免过小块导致高频调度开销。
+  disk_write:
+    file_type: binary raw stream
+    target_extension: .bin
+    write_mode: sequential append
+    flush_policy:
+      - stop capture 时必须 flush
+      - 运行中可定期 flush，例如每 1 到 5 秒
+    incomplete_file_policy:
+      when:
+        - ring buffer overflow
+        - dma error growth
+        - manual force stop after exception
+      action:
+        - 关闭文件
+        - metadata 标记 is_incomplete=true
+        - UI 提示文件可能不完整
+  metadata:
+    format: json
+    write_timing: capture stop
+    required_fields:
+      - device
+      - vid
+      - pid
+      - usb_speed
+      - sample_clock_hz
+      - data_rate_bytes_per_sec
+      - mapping
+      - start_time_host
+      - stop_time_host
+      - operator_name
+      - bin_file
+      - bytes_received
+      - bytes_written
+      - dma_error_count_start
+      - dma_error_count_stop
+      - prod_event_count_start
+      - prod_event_count_stop
+      - is_incomplete
+      - stop_reason
+
+file_naming_policy:
+  operator_name_source: 用户输入或配置文件默认值
+  preferred_ascii_name_example: XieJunhan
+  filename_pattern: "{operator_name}_{yyyyMMdd_HHmmss}.bin"
+  metadata_pattern: "{operator_name}_{yyyyMMdd_HHmmss}.json"
+  timestamp_source: host_local_time
+  examples:
+    - XieJunhan_20260421_153025.bin
+    - XieJunhan_20260421_153025.json
+  path_rules:
+    - 默认输出目录可配置
+    - 若目录不存在则自动创建
+    - 文件名冲突时追加序号
+    - 避免使用非法字符
+
+ui_design:
+  main_window_sections:
+    - name: 设备连接区
+      items:
+        - FX3 是否连接
+        - 串口是否连接
+        - 刷新按钮
+        - 连接按钮
+        - 断开按钮
+    - name: 前端状态区
+      items:
+        - pll_locked
+        - antenna_ok
+        - current_freq_hz
+        - tcxo_freq_hz
+        - active_profile
+        - last_error
+    - name: FX3 状态区
+      items:
+        - active
+        - usb_speed
+        - prodEventCount
+        - dmaErrorCount
+    - name: 采集控制区
+      items:
+        - 操作员姓名输入框
+        - 输出目录选择
+        - 开始采集按钮
+        - 停止采集按钮
+        - 重置流按钮
+    - name: 采集信息区
+      items:
+        - 当前文件名
+        - 已接收字节
+        - 已写入字节
+        - 实时写入速率
+        - ring buffer 占用
+        - session start time
+    - name: 日志区
+      items:
+        - 时间戳
+        - 级别
+        - 消息
+  ui_rules:
+    - 未完成 FX3 连接时禁止开始采集
+    - 未完成 HELLO/GET_STATUS 前禁止显示为 ready
+    - 采集中禁止重复点击开始
+    - 停止中禁止再次点击停止
+    - 错误状态必须明确提示恢复建议
+
+application_flows:
+  startup_flow:
+    - 启动应用
+    - 初始化日志
+    - 恢复用户设置
+    - 自动或手动刷新设备
+    - 若找到 FX3，则允许连接
+    - 若找到串口，则允许打开
+    - 打开串口后发送 HELLO
+    - HELLO 成功后发送 GET_STATUS
+    - 更新 UI 状态
+  capture_start_flow:
+    - 校验 FX3 已连接
+    - 校验前端已连接且 HELLO 成功
+    - 生成输出文件名
+    - 创建 capture session
+    - 创建 ring buffer
+    - 打开 .bin 文件
+    - 读取 FX3 初始状态
+    - 发 EP0 START_STREAM
+    - 启动 usb_receive_worker
+    - 启动 disk_writer_worker
+    - 启动 status_monitor_worker
+    - UI 进入 Capturing
+  capture_stop_flow:
+    - 用户点击停止 或 检测到严重错误
+    - 发 EP0 STOP_STREAM
+    - 停止新的 bulk IN 读取
+    - 排空 ring buffer
+    - 关闭 writer
+    - 读取结束状态
+    - 写 metadata json
+    - UI 回到 ReadyToCapture
+  error_recovery_flow:
+    - 记录异常
+    - 显示错误消息
+    - 若为 dma error growth，则停止采集并尝试 RESET_STREAM
+    - 若为 serial timeout，则标记前端状态未知，但不必立即中止已开始的纯 USB 采集
+    - 若为 ring buffer overflow，则立即停止采集并标记文件不完整
+    - 若设备断开，则转入 Error 并要求用户重连
+
+protocol_handling_rules:
+  usb_rules:
+    - GET_STATUS 的结果必须解析并映射到统一状态模型
+    - START_STREAM 成功后才可启动长时间接收逻辑
+    - STOP_STREAM 后不得继续提交新的 bulk IN 请求
+    - 可选提供 RESET_STREAM 用于故障恢复
+    - 若 usbSpeed 不是 SS，应给出警告但允许继续
+  serial_rules:
+    - 每次开串口后必须重新从 SEQ 初值开始
+    - 所有发送帧都必须包含正确 CRC16
+    - 所有接收帧必须验证 SOF、长度、CRC、TYPE 和 CMD
+    - HELLO 必须是首个控制命令
+    - GET_STATUS 可用于启动后和运行中状态轮询
+    - PING 用于 idle keepalive，可选
+    - 不得使用 ASCII 文本命令替代二进制帧
+  parsing_rules:
+    - 任何结构体解析都按 little-endian
+    - 未识别 err_code 要显示原始值
+    - 收到 device_async_event 时可更新状态并写日志
+
+reliability_requirements:
+  performance_targets:
+    sustained_disk_write_mb_per_sec_min: 30
+    capture_duration_validation_min: 60
+    expected_file_size_for_60s_bytes: 1560000000
+  timeout_policy_ms:
+    fx3_status_request: 100
+    frontend_normal_command: 100
+    frontend_frequency_command: 200
+    frontend_pll_lock_wait: 500
+    reconnect_wait: 2000
+  retry_policy:
+    serial_command_retry_count: 3
+    usb_status_retry_count: 3
+  alarms:
+    - no_device_found
+    - serial_open_failed
+    - hello_failed
+    - status_timeout
+    - no_data_after_start
+    - dma_error_growth
+    - ring_buffer_overflow
+    - disk_write_exception
+    - device_unplugged
+  watchdog_checks:
+    - active flag after START_STREAM
+    - prodEventCount growth while capturing
+    - dmaErrorCount stable or slowly changing
+    - bytes_written approximately tracks bytes_received
+    - file size consistency with elapsed time
+
+test_plan:
+  unit_tests:
+    - CRC16-IBM correctness
+    - serial frame encode/decode
+    - FX3 status struct parse
+    - frontend status parse
+    - filename policy
+    - state machine transitions
+  integration_tests:
+    - enumeration_test
+    - control_command_test
+    - hello_then_get_status_test
+    - continuous_stream_test
+    - 1_minute_disk_write_test
+    - stop_and_close_file_test
+    - reset_recovery_test
+  manual_tests:
+    - unplug USB during capture
+    - stop capture during high throughput
+    - invalid serial response CRC
+    - slow disk target simulation
+    - operator_name with invalid characters
+  acceptance_criteria:
+    - 可稳定识别 FX3 设备并显示连接状态
+    - 可稳定完成 HELLO 和 GET_STATUS
+    - 可显示 pll_locked 和 antenna_ok 等关键状态
+    - 可通过 START_STREAM 启动采集
+    - 可通过 STOP_STREAM 正常停止采集
+    - 连续 60 秒采集无崩溃
+    - 在正常磁盘条件下不发生 ring buffer overflow
+    - 生成 .bin 文件名符合姓名+时间戳策略
+    - 停止后可生成 metadata json
+    - 错误发生时 UI 有明确日志与提示
+
+implementation_guidance_for_agent:
+  produce_first:
+    - 完整解决方案目录结构
+    - 核心类关系图或文字说明
+    - MVP 界面草图
+    - 关键接口定义
+    - 状态机定义
+    - 采集线程模型
+  code_style:
+    - 明确接口与实现分离
+    - 所有异步方法支持 CancellationToken
+    - 所有 I/O 操作加异常捕获与日志
+    - 统一 Result 或异常策略，不混乱
+    - 不在 ViewModel 中直接写协议字节拼接
+  architectural_constraints:
+    - 不要做成单文件代码堆叠
+    - 不要让 UI 线程直接持有 USB 长时读循环
+    - 不要省略 ring buffer
+    - 不要省略独立写盘线程
+    - 不要把 MVP 扩展到在线反演导致复杂度失控
+  future_extension_points:
+    - SET_CENTER_FREQ 面板
+    - LOAD_DEFAULT_PROFILE
+    - RESET_FRONTEND
+    - async event 可视化
+    - 数据在线解复用
+    - 实时预览
+    - 频谱/统计图
+    - 多配置方案切换
+
+notes:
+  - 当前设计重点是稳定采集，不是复杂分析。
+  - 若官方 FX3 主机库可用，应优先使用，降低驱动层风险。
+  - 前端串口状态链路与 FX3 数据链路应视为两条相互协作但相对独立的通道。
+  - 即使前端状态链路暂时异常，也不应默认 bulk 数据链路一定失败，反之亦然。
+  - metadata json 虽非你的最小诉求，但强烈建议保留，因为后续数据处理与论文实验记录都会用到。
