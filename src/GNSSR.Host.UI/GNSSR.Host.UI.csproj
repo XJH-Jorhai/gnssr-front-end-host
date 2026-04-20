@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GNSSR.Host.Core\GNSSR.Host.Core.csproj" />
+    <ProjectReference Include="..\GNSSR.Host.Infrastructure.Logging\GNSSR.Host.Infrastructure.Logging.csproj" />
+    <ProjectReference Include="..\GNSSR.Host.Infrastructure.Serial\GNSSR.Host.Infrastructure.Serial.csproj" />
+    <ProjectReference Include="..\GNSSR.Host.Infrastructure.Storage\GNSSR.Host.Infrastructure.Storage.csproj" />
+    <ProjectReference Include="..\GNSSR.Host.Infrastructure.USB\GNSSR.Host.Infrastructure.USB.csproj" />
+  </ItemGroup>
+</Project>

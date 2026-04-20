@@ -1,0 +1,356 @@
+<ui:FluentWindow
+    x:Class="GNSSR.Host.UI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    Title="GNSSR Host Console"
+    Width="1500"
+    Height="960"
+    MinWidth="1260"
+    MinHeight="820"
+    WindowStartupLocation="CenterScreen"
+    mc:Ignorable="d">
+    <Grid Background="#F3F6FA">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar
+            Grid.Row="0"
+            Title="GNSSR Host Console" />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24">
+                <Border
+                    Margin="0,0,0,20"
+                    Padding="28"
+                    CornerRadius="24">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Offset="0" Color="#17344D" />
+                            <GradientStop Offset="0.55" Color="#1F5F7A" />
+                            <GradientStop Offset="1" Color="#5C8E7D" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2.2*" />
+                            <ColumnDefinition Width="1.4*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Margin="0,0,24,0">
+                            <TextBlock
+                                FontSize="32"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                Text="GNSS-R Front-End Host Skeleton" />
+                            <TextBlock
+                                Margin="0,10,0,0"
+                                FontSize="15"
+                                Foreground="#EAF5FF"
+                                TextWrapping="Wrap"
+                                Text="基于 YAML 规格生成的 .NET 8 + WPF 应用骨架。当前以 WPF UI 统一视觉风格，串口、FX3 与采集会话由可替换的 mock 服务驱动，便于先把工作流、界面和架构稳定下来。" />
+                            <TextBlock
+                                Margin="0,16,0,0"
+                                FontSize="13"
+                                Foreground="#D3E6F2"
+                                Text="{Binding ThroughputTargetText}" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="13"
+                                Foreground="#D3E6F2"
+                                Text="{Binding StackDescription}" />
+                        </StackPanel>
+
+                        <WrapPanel Grid.Column="1" HorizontalAlignment="Right" ItemHeight="36" ItemWidth="220">
+                            <Border Margin="0,0,12,12" Padding="14,8" Background="#1F4463" CornerRadius="18">
+                                <StackPanel>
+                                    <TextBlock Foreground="#B9D4E4" Text="App State" />
+                                    <TextBlock FontWeight="SemiBold" Foreground="White" Text="{Binding AppStateText}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,12,12" Padding="14,8" Background="#244F5A" CornerRadius="18">
+                                <StackPanel>
+                                    <TextBlock Foreground="#C9E4E3" Text="FX3 Link" />
+                                    <TextBlock FontWeight="SemiBold" Foreground="White" Text="{Binding Fx3ConnectionText}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,12,12" Padding="14,8" Background="#2C4D6B" CornerRadius="18">
+                                <StackPanel>
+                                    <TextBlock Foreground="#C6DFF4" Text="Frontend Link" />
+                                    <TextBlock FontWeight="SemiBold" Foreground="White" Text="{Binding FrontendConnectionText}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,12,12" Padding="14,8" Background="#35595D" CornerRadius="18">
+                                <StackPanel>
+                                    <TextBlock Foreground="#D5ECE3" Text="Capture" />
+                                    <TextBlock FontWeight="SemiBold" Foreground="White" Text="{Binding CaptureStateText}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,12,12" Padding="14,8" Background="#2F4467" CornerRadius="18">
+                                <StackPanel>
+                                    <TextBlock Foreground="#D1DBF5" Text="Theme" />
+                                    <TextBlock FontWeight="SemiBold" Foreground="White" Text="{Binding ThemeDescription}" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:Card Grid.Column="0" Margin="0,0,16,0" Padding="18">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="设备连接区" />
+                            <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="FX3 枚举、连接与断开控制" />
+
+                            <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="FX3 Device" />
+                            <ComboBox
+                                Margin="0,0,0,12"
+                                DisplayMemberPath="DisplayName"
+                                ItemsSource="{Binding Fx3Devices}"
+                                SelectedItem="{Binding SelectedFx3Device}" />
+
+                            <WrapPanel Margin="0,0,0,12">
+                                <Button Margin="0,0,10,10" Command="{Binding RefreshDevicesCommand}" Content="刷新设备" />
+                                <Button Margin="0,0,10,10" Command="{Binding ConnectFx3Command}" Content="连接 FX3" />
+                                <Button Margin="0,0,10,10" Command="{Binding DisconnectFx3Command}" Content="断开 FX3" />
+                            </WrapPanel>
+
+                            <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="连接状态" />
+                            <TextBlock Foreground="#475467" Text="{Binding Fx3ConnectionText}" />
+                            <TextBlock Margin="0,14,0,4" FontWeight="SemiBold" Text="推荐接口" />
+                            <TextBlock Foreground="#475467" Text="VID 0x04B4 / PID 0x00F1 / Bulk IN 0x81" />
+                        </StackPanel>
+                    </ui:Card>
+
+                    <ui:Card Grid.Column="1" Margin="0,0,16,0" Padding="18">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="前端状态区" />
+                            <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="HELLO + GET_STATUS 的 UI 映射" />
+
+                            <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="Serial Port" />
+                            <ComboBox
+                                Margin="0,0,0,12"
+                                ItemsSource="{Binding SerialPorts}"
+                                SelectedItem="{Binding SelectedSerialPort}" />
+
+                            <WrapPanel Margin="0,0,0,12">
+                                <Button Margin="0,0,10,10" Command="{Binding ConnectFrontendCommand}" Content="连接前端" />
+                                <Button Margin="0,0,10,10" Command="{Binding DisconnectFrontendCommand}" Content="断开前端" />
+                            </WrapPanel>
+
+                            <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="串口状态" />
+                            <TextBlock Foreground="#475467" Text="{Binding FrontendConnectionText}" />
+                            <TextBlock Margin="0,14,0,4" FontWeight="SemiBold" Text="协议快照" />
+                            <TextBlock Foreground="#475467" Text="115200 / 8N1 / CRC16-IBM / HELLO first" />
+                        </StackPanel>
+                    </ui:Card>
+
+                    <ui:Card Grid.Column="2" Padding="18">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="FX3 状态区" />
+                            <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="Active、USB Speed、事件计数和错误计数" />
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.2*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Active" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding Fx3ActiveText}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="USB Speed" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding UsbSpeedText}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="ProdEventCount" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding ProdEventCountText}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" FontWeight="SemiBold" Text="DmaErrorCount" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding DmaErrorCountText}" />
+                            </Grid>
+                        </StackPanel>
+                    </ui:Card>
+                </Grid>
+
+                <Grid Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.1*" />
+                        <ColumnDefinition Width="0.9*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:Card Grid.Column="0" Margin="0,0,16,0" Padding="18">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="采集控制区" />
+                            <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="操作员、输出目录、开始/停止/重置动作" />
+
+                            <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="操作员姓名" />
+                            <TextBox Margin="0,0,0,12" Text="{Binding OperatorName, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="输出目录" />
+                            <TextBox Margin="0,0,0,12" Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <WrapPanel Margin="0,0,0,14">
+                                <Button Margin="0,0,10,10" Command="{Binding UseRecommendedOutputDirectoryCommand}" Content="使用推荐目录" />
+                                <Button Margin="0,0,10,10" Command="{Binding StartCaptureCommand}" Content="开始采集" />
+                                <Button Margin="0,0,10,10" Command="{Binding StopCaptureCommand}" Content="停止采集" />
+                                <Button Margin="0,0,10,10" Command="{Binding ResetStreamCommand}" Content="重置流" />
+                            </WrapPanel>
+
+                            <Border Padding="14" Background="#EDF4FF" CornerRadius="16">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Foreground="#1F4F8D" Text="当前实现说明" />
+                                    <TextBlock
+                                        Margin="0,6,0,0"
+                                        Foreground="#31567A"
+                                        TextWrapping="Wrap"
+                                        Text="为了保证项目骨架先可启动、可演示、可继续扩展，目前 UI 驱动的是 mock 基础设施。后续将 Infrastructure.USB / Serial / Storage 中的 mock 类替换成真实驱动即可接入硬件。" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <ui:Card Grid.Column="1" Padding="18">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="采集信息区" />
+                            <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="当前文件、吞吐、ring buffer 和 session 起始时间" />
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.2*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="当前文件" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding CurrentFileName}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="已接收字节" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding BytesReceivedText}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="已写入字节" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding BytesWrittenText}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="写入速率" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding WriteRateText}" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Session Start" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding SessionStartText}" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" FontWeight="SemiBold" Text="Buffer Peak" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding RingBufferPeakText}" />
+                            </Grid>
+
+                            <TextBlock Margin="0,18,0,6" FontWeight="SemiBold" Text="Ring Buffer 占用" />
+                            <ProgressBar Height="10" Maximum="100" Value="{Binding RingBufferUsagePercent}" />
+                        </StackPanel>
+                    </ui:Card>
+                </Grid>
+
+                <Grid Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.1*" />
+                        <ColumnDefinition Width="0.9*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:Card Grid.Column="0" Margin="0,0,16,0" Padding="18">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="前端关键状态" />
+                            <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="pll_locked、antenna_ok、profile、频点、TCXO 与错误码" />
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.2*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="PLL Lock" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding PllLockText}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Antenna" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding AntennaStatusText}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Profile" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding ActiveProfileText}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Current Freq" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding CurrentFrequencyText}" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="TCXO" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding TcxoFrequencyText}" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" FontWeight="SemiBold" Text="Last Error" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding FrontendLastErrorText}" />
+                            </Grid>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <ui:Card Grid.Column="1" Padding="18">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="后台工作线程模型" />
+                            <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="来自规格的三条核心 worker 责任拆分" />
+
+                            <ItemsControl ItemsSource="{Binding BackgroundWorkers}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,10" Padding="12" Background="#F7F9FC" CornerRadius="14">
+                                            <TextBlock TextWrapping="Wrap" Text="{Binding}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ui:Card>
+                </Grid>
+
+                <ui:Card Padding="18">
+                    <StackPanel>
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="日志区" />
+                        <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="时间戳、级别和消息流。后续接入真实驱动后，这里会直接承接协议、状态机和错误恢复日志。" />
+
+                        <ListView Height="300" ItemsSource="{Binding Logs}">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Width="90" DisplayMemberBinding="{Binding TimestampDisplay}" Header="Time" />
+                                    <GridViewColumn Width="90" DisplayMemberBinding="{Binding SeverityDisplay}" Header="Level" />
+                                    <GridViewColumn Width="1100" DisplayMemberBinding="{Binding Message}" Header="Message" />
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </StackPanel>
+                </ui:Card>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ui:FluentWindow>

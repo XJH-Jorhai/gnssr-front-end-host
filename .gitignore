@@ -36,7 +36,12 @@ Desktop.ini
 # Package caches
 node_modules/
 
+# Local SDK/tooling bootstrap
+.dotnet/
+.tools/
+.dotnet-cli-home/
+.nuget-packages/
+
 # Common archive outputs
 *.zip
 *.7z
-

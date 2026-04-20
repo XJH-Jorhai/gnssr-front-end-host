@@ -1,0 +1,51 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GNSSR.Host.Core", "src\GNSSR.Host.Core\GNSSR.Host.Core.csproj", "{30E7C0C1-B1A8-4B61-8AC4-66D458CE4DAA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GNSSR.Host.Infrastructure.Logging", "src\GNSSR.Host.Infrastructure.Logging\GNSSR.Host.Infrastructure.Logging.csproj", "{8B6F6CB4-8D61-4699-80BD-58F4A61BFAAA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GNSSR.Host.Infrastructure.Serial", "src\GNSSR.Host.Infrastructure.Serial\GNSSR.Host.Infrastructure.Serial.csproj", "{E0FA27A3-C31B-4692-A3B3-05D3087C7531}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GNSSR.Host.Infrastructure.Storage", "src\GNSSR.Host.Infrastructure.Storage\GNSSR.Host.Infrastructure.Storage.csproj", "{98766B63-DDF0-495B-BA43-BE9ADDC5484E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GNSSR.Host.Infrastructure.USB", "src\GNSSR.Host.Infrastructure.USB\GNSSR.Host.Infrastructure.USB.csproj", "{5CA81E9A-5E7B-4605-B513-862DB6D34E33}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GNSSR.Host.UI", "src\GNSSR.Host.UI\GNSSR.Host.UI.csproj", "{87368913-4E44-4E0F-AF05-0D5A4092F3CD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{30E7C0C1-B1A8-4B61-8AC4-66D458CE4DAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30E7C0C1-B1A8-4B61-8AC4-66D458CE4DAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30E7C0C1-B1A8-4B61-8AC4-66D458CE4DAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30E7C0C1-B1A8-4B61-8AC4-66D458CE4DAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8B6F6CB4-8D61-4699-80BD-58F4A61BFAAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B6F6CB4-8D61-4699-80BD-58F4A61BFAAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B6F6CB4-8D61-4699-80BD-58F4A61BFAAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B6F6CB4-8D61-4699-80BD-58F4A61BFAAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E0FA27A3-C31B-4692-A3B3-05D3087C7531}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0FA27A3-C31B-4692-A3B3-05D3087C7531}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0FA27A3-C31B-4692-A3B3-05D3087C7531}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0FA27A3-C31B-4692-A3B3-05D3087C7531}.Release|Any CPU.Build.0 = Release|Any CPU
+		{98766B63-DDF0-495B-BA43-BE9ADDC5484E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98766B63-DDF0-495B-BA43-BE9ADDC5484E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98766B63-DDF0-495B-BA43-BE9ADDC5484E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98766B63-DDF0-495B-BA43-BE9ADDC5484E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5CA81E9A-5E7B-4605-B513-862DB6D34E33}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CA81E9A-5E7B-4605-B513-862DB6D34E33}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CA81E9A-5E7B-4605-B513-862DB6D34E33}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CA81E9A-5E7B-4605-B513-862DB6D34E33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87368913-4E44-4E0F-AF05-0D5A4092F3CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87368913-4E44-4E0F-AF05-0D5A4092F3CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87368913-4E44-4E0F-AF05-0D5A4092F3CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87368913-4E44-4E0F-AF05-0D5A4092F3CD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
