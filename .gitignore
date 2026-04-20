@@ -1,0 +1,42 @@
+# .NET build outputs
+bin/
+obj/
+out/
+publish/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Test and coverage artifacts
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Logs and temp files
+logs/
+*.log
+*.tmp
+*.temp
+
+# OS-generated files
+Thumbs.db
+Desktop.ini
+
+# Local environment overrides
+.env
+.env.*
+
+# Package caches
+node_modules/
+
+# Common archive outputs
+*.zip
+*.7z
+
