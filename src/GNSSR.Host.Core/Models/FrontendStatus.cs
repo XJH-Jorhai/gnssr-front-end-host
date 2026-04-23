@@ -16,7 +16,7 @@ public sealed class FrontendStatus
 
     public string ProtocolVersion { get; init; } = "1.0";
 
-    public string FirmwareVersion { get; init; } = "mock-fw-0.1";
+    public string FirmwareVersion { get; init; } = "未读取";
 
-    public string HardwareVersion { get; init; } = "mock-hw-a";
+    public string HardwareVersion { get; init; } = "未读取";
 }

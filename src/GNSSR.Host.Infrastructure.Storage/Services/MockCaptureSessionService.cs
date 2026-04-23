@@ -31,7 +31,7 @@ public sealed class MockCaptureSessionService : ICaptureSessionService
     public CaptureSessionInfo? CurrentSession { get; private set; }
 
     public async Task<CaptureSessionInfo> StartAsync(
-        string operatorName,
+        string fileNamePrefix,
         string outputDirectory,
         Fx3DeviceInfo device,
         Fx3Status fx3Status,
@@ -42,7 +42,7 @@ public sealed class MockCaptureSessionService : ICaptureSessionService
             throw new InvalidOperationException("A capture session is already running.");
         }
 
-        var paths = _fileNamingPolicy.CreateSessionPaths(operatorName, outputDirectory);
+        var paths = _fileNamingPolicy.CreateSessionPaths(fileNamePrefix, outputDirectory);
         Directory.CreateDirectory(outputDirectory);
 
         await File.WriteAllBytesAsync(paths.BinPath, Array.Empty<byte>(), cancellationToken);
@@ -53,7 +53,7 @@ public sealed class MockCaptureSessionService : ICaptureSessionService
         CurrentSession = new CaptureSessionInfo
         {
             SessionId = Guid.NewGuid().ToString("N"),
-            OperatorName = _fileNamingPolicy.SanitizeOperatorName(operatorName),
+            FileNamePrefix = _fileNamingPolicy.SanitizeFileNamePrefix(fileNamePrefix),
             OutputDirectory = outputDirectory,
             BaseFileName = paths.BaseFileName,
             BinPath = paths.BinPath,
@@ -66,7 +66,7 @@ public sealed class MockCaptureSessionService : ICaptureSessionService
         _captureTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _captureLoop = Task.Run(() => RunCaptureLoopAsync(_captureTokenSource.Token), CancellationToken.None);
 
-        _logger.Info($"Capture session created: {paths.BaseFileName}.bin");
+        _logger.Info($"已创建采集文件：{paths.BaseFileName}.bin");
         return CurrentSession;
     }
 
@@ -99,7 +99,7 @@ public sealed class MockCaptureSessionService : ICaptureSessionService
         await WriteMetadataAsync(CurrentSession, _currentMetrics.Clone(), cancellationToken);
 
         var completedSession = CurrentSession;
-        _logger.Info($"Capture session stopped: {completedSession.BaseFileName} ({stopReason}).");
+        _logger.Info($"采集已停止：{completedSession.BaseFileName}（{stopReason}）。");
 
         _captureLoop = null;
         _captureTokenSource?.Dispose();
@@ -151,7 +151,7 @@ public sealed class MockCaptureSessionService : ICaptureSessionService
             mapping = "low_nibble=MAX2769_A_D3_D0, high_nibble=MAX2769_B_D3_D0",
             start_time_host = session.StartTimeHost,
             stop_time_host = session.StopTimeHost,
-            operator_name = session.OperatorName,
+            file_name_prefix = session.FileNamePrefix,
             bin_file = Path.GetFileName(session.BinPath),
             bytes_received = metrics.BytesReceived,
             bytes_written = metrics.BytesWritten,

@@ -5,22 +5,428 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    Title="GNSSR Host Console"
-    Width="1500"
+    Title="GNSSR 采集控制台"
+    Width="1520"
     Height="960"
-    MinWidth="1260"
-    MinHeight="820"
+    MinWidth="1280"
+    MinHeight="840"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
     <ui:FluentWindow.Resources>
-        <Style TargetType="{x:Type TabItem}">
-            <Setter Property="Padding" Value="18,10" />
+        <Style x:Key="SegmentedTabControlStyle" TargetType="{x:Type TabControl}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabControl}">
+                        <ContentPresenter ContentSource="SelectedContent" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SegmentedNavButtonBaseStyle" TargetType="{x:Type RadioButton}">
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,30,0" />
+            <Setter Property="MinWidth" Value="118" />
+            <Setter Property="Height" Value="64" />
+            <Setter Property="Padding" Value="34,0" />
+            <Setter Property="Background" Value="#EEF2F6" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Panel.ZIndex" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border
+                            x:Name="ButtonBorder"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="18">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
+                        </Border>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Panel.ZIndex" Value="4" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#D8E1EA" />
+                            </Trigger>
+
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="#0F172A" />
+                                <Setter Property="Background" Value="White" />
+                                <Setter Property="BorderBrush" Value="#CBD5E1" />
+                                <Setter Property="Panel.ZIndex" Value="10" />
+                            </Trigger>
+
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#EEF2F6" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SurfacePanelStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="24" />
+            <Setter Property="Padding" Value="24" />
+        </Style>
+
+        <Style x:Key="SectionTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#0F172A" />
+        </Style>
+
+        <Style x:Key="SummaryLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#64748B" />
+        </Style>
+
+        <Style x:Key="SummaryValueStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="FieldLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#475569" />
+        </Style>
+
+        <Style x:Key="MetricLabelStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#334155" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="MetricValueStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="StatusTextStyle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource MetricValueStyle}">
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="StatusDotStyle" TargetType="{x:Type Ellipse}">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Height" Value="9" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="StatusValuePanelStyle" TargetType="{x:Type StackPanel}">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="ActionButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Margin" Value="0,0,12,10" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border
+                            x:Name="ButtonBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="12">
+                            <ContentPresenter
+                                Margin="14,0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
+                        </Border>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#B6C2CF" />
+                            </Trigger>
+
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#EFF4F8" />
+                            </Trigger>
+
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#94A3B8" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#E2E8F0" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CompactButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Height" Value="50" />
+            <Setter Property="Margin" Value="12,0,0,0" />
+        </Style>
+
+        <Style x:Key="InlineActionButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Height" Value="50" />
+            <Setter Property="Margin" Value="12,0,0,0" />
+        </Style>
+
+        <Style x:Key="PrimaryTextBoxStyle" TargetType="{x:Type TextBox}">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="ComboBoxItemStyle" TargetType="{x:Type ComboBoxItem}">
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                        <Border
+                            x:Name="ItemBorder"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="10">
+                            <ContentPresenter />
+                        </Border>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
+                            </Trigger>
+
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#E0F2FE" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryComboBoxStyle" TargetType="{x:Type ComboBox}">
+            <Setter Property="Height" Value="50" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ComboBoxItemStyle}" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ComboBox}">
+                        <Grid>
+                            <ToggleButton
+                                Focusable="False"
+                                ClickMode="Press"
+                                IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                                        <Border
+                                            x:Name="ComboBorder"
+                                            Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                            BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                            BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                            CornerRadius="14">
+                                            <Grid>
+                                                <ContentPresenter
+                                                    Margin="14,0,42,0"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Center"
+                                                    Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                    ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
+                                                <Path
+                                                    Width="10"
+                                                    Height="6"
+                                                    Margin="0,0,16,0"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Data="M 0 0 L 5 5 L 10 0"
+                                                    Stroke="#64748B"
+                                                    StrokeThickness="1.6" />
+                                            </Grid>
+                                        </Border>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ComboBorder" Property="BorderBrush" Value="#94A3B8" />
+                                                <Setter TargetName="ComboBorder" Property="Background" Value="#F8FAFC" />
+                                            </Trigger>
+
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="ComboBorder" Property="BorderBrush" Value="#93C5FD" />
+                                                <Setter TargetName="ComboBorder" Property="Background" Value="#F8FBFF" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <Popup
+                                AllowsTransparency="True"
+                                Focusable="False"
+                                IsOpen="{TemplateBinding IsDropDownOpen}"
+                                Placement="Bottom"
+                                PopupAnimation="Fade">
+                                <Border
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Margin="0,6,0,0"
+                                    Background="White"
+                                    BorderBrush="#CBD5E1"
+                                    BorderThickness="1"
+                                    CornerRadius="16">
+                                    <ScrollViewer Margin="4" SnapsToDevicePixels="True">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.65" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MinimalProgressBarStyle" TargetType="{x:Type ProgressBar}">
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Background" Value="#E2E8F0" />
+            <Setter Property="Foreground" Value="#60A5FA" />
+        </Style>
+
+        <Style x:Key="LogDataGridStyle" TargetType="{x:Type DataGrid}">
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserDeleteRows" Value="False" />
+            <Setter Property="CanUserReorderColumns" Value="False" />
+            <Setter Property="CanUserResizeRows" Value="False" />
+            <Setter Property="CanUserSortColumns" Value="False" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="RowHeight" Value="40" />
+            <Setter Property="ColumnHeaderHeight" Value="42" />
+            <Setter Property="RowHeaderWidth" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalGridLinesBrush" Value="#EAEFF5" />
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
+            <Setter Property="AlternatingRowBackground" Value="#F8FAFC" />
+        </Style>
+
+        <Style x:Key="LogColumnHeaderStyle" TargetType="{x:Type DataGridColumnHeader}">
+            <Setter Property="Background" Value="#F8FAFC" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Foreground" Value="#475569" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="14,0" />
+        </Style>
+
+        <Style x:Key="LogRowStyle" TargetType="{x:Type DataGridRow}">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#EAEFF5" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DataGridRow}">
+                        <Border
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                            <SelectiveScrollingGrid>
+                                <SelectiveScrollingGrid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                </SelectiveScrollingGrid.ColumnDefinitions>
+                                <SelectiveScrollingGrid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </SelectiveScrollingGrid.RowDefinitions>
+
+                                <DataGridCellsPresenter Grid.Column="0" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                                <DataGridDetailsPresenter Grid.Row="1" Grid.Column="0" Visibility="{TemplateBinding DetailsVisibility}" />
+                            </SelectiveScrollingGrid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LogCellStyle" TargetType="{x:Type DataGridCell}">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DataGridCell}">
+                        <Border Background="Transparent" SnapsToDevicePixels="True">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LogCellTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
     </ui:FluentWindow.Resources>
 
-    <Grid Background="#F3F6FA">
+    <Grid Background="#F4F7FA">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -28,13 +434,13 @@
 
         <ui:TitleBar
             Grid.Row="0"
-            Title="GNSSR Host Console" />
+            Title="GNSSR 采集控制台" />
 
         <Grid
             Grid.Row="1"
-            MaxWidth="1680"
-            Margin="24,20,24,24"
-            HorizontalAlignment="Center">
+            MaxWidth="2200"
+            Margin="32,18,32,24"
+            HorizontalAlignment="Stretch">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -42,254 +448,402 @@
 
             <Border
                 Grid.Row="0"
-                Padding="28"
-                CornerRadius="28">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Offset="0" Color="#17344D" />
-                        <GradientStop Offset="0.55" Color="#1F5F7A" />
-                        <GradientStop Offset="1" Color="#5C8E7D" />
-                    </LinearGradientBrush>
-                </Border.Background>
+                Style="{StaticResource SurfacePanelStyle}"
+                Padding="20">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="260" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel>
-                    <TextBlock
-                        FontSize="32"
-                        FontWeight="SemiBold"
-                        Foreground="White"
-                        Text="GNSS-R Front-End Host Skeleton" />
-                    <TextBlock
-                        Margin="0,10,0,0"
-                        FontSize="15"
-                        Foreground="#EAF5FF"
-                        TextWrapping="Wrap"
-                        Text="基于 YAML 规格生成的 .NET 8 + WPF 应用骨架。当前以 WPF UI 统一视觉风格，把串口、FX3 与采集会话先放在可替换的 mock 服务之上，便于先把工作流、界面和架构稳定下来。" />
-                    <TextBlock
-                        Margin="0,16,0,0"
-                        FontSize="13"
-                        Foreground="#D3E6F2"
-                        Text="{Binding ThroughputTargetText}" />
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        FontSize="13"
-                        Foreground="#D3E6F2"
-                        Text="{Binding StackDescription}" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="#64748B"
+                            Text="GNSSR" />
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="28"
+                            FontWeight="SemiBold"
+                            Foreground="#0F172A"
+                            Text="采集控制台" />
+                    </StackPanel>
 
-                    <WrapPanel Margin="0,22,0,0">
+                    <Grid
+                        Grid.Column="1"
+                        Margin="24,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
                         <Border
-                            Width="220"
-                            MinHeight="82"
-                            Margin="0,0,12,12"
-                            Padding="16,12"
-                            Background="#1F4463"
+                            Grid.Column="0"
+                            Margin="0,0,12,0"
+                            Padding="14,12"
+                            Background="#F8FAFC"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1"
                             CornerRadius="18">
                             <StackPanel>
-                                <TextBlock Foreground="#B9D4E4" Text="App State" />
-                                <TextBlock
-                                    Margin="0,6,0,0"
-                                    FontSize="15"
-                                    FontWeight="SemiBold"
-                                    Foreground="White"
-                                    Text="{Binding AppStateText}"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource SummaryLabelStyle}" Text="应用状态" />
+                                <StackPanel
+                                    Margin="0,8,0,0"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Style="{StaticResource StatusDotStyle}"
+                                        Fill="{Binding AppStateBrush}" />
+                                    <TextBlock
+                                        Style="{StaticResource SummaryValueStyle}"
+                                        Text="{Binding AppStateText}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
                         <Border
-                            Width="220"
-                            MinHeight="82"
-                            Margin="0,0,12,12"
-                            Padding="16,12"
-                            Background="#244F5A"
+                            Grid.Column="1"
+                            Margin="0,0,12,0"
+                            Padding="14,12"
+                            Background="#F8FAFC"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1"
                             CornerRadius="18">
                             <StackPanel>
-                                <TextBlock Foreground="#C9E4E3" Text="FX3 Link" />
-                                <TextBlock
-                                    Margin="0,6,0,0"
-                                    FontSize="15"
-                                    FontWeight="SemiBold"
-                                    Foreground="White"
-                                    Text="{Binding Fx3ConnectionText}"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource SummaryLabelStyle}" Text="FX3" />
+                                <StackPanel
+                                    Margin="0,8,0,0"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Style="{StaticResource StatusDotStyle}"
+                                        Fill="{Binding Fx3StatusBrush}" />
+                                    <TextBlock
+                                        Style="{StaticResource SummaryValueStyle}"
+                                        Text="{Binding Fx3ConnectionText}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
                         <Border
-                            Width="220"
-                            MinHeight="82"
-                            Margin="0,0,12,12"
-                            Padding="16,12"
-                            Background="#2C4D6B"
+                            Grid.Column="2"
+                            Margin="0,0,12,0"
+                            Padding="14,12"
+                            Background="#F8FAFC"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1"
                             CornerRadius="18">
                             <StackPanel>
-                                <TextBlock Foreground="#C6DFF4" Text="Frontend Link" />
-                                <TextBlock
-                                    Margin="0,6,0,0"
-                                    FontSize="15"
-                                    FontWeight="SemiBold"
-                                    Foreground="White"
-                                    Text="{Binding FrontendConnectionText}"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource SummaryLabelStyle}" Text="前端" />
+                                <StackPanel
+                                    Margin="0,8,0,0"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Style="{StaticResource StatusDotStyle}"
+                                        Fill="{Binding FrontendStatusBrush}" />
+                                    <TextBlock
+                                        Style="{StaticResource SummaryValueStyle}"
+                                        Text="{Binding FrontendConnectionText}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
                         <Border
-                            Width="220"
-                            MinHeight="82"
-                            Margin="0,0,12,12"
-                            Padding="16,12"
-                            Background="#35595D"
+                            Grid.Column="3"
+                            Padding="14,12"
+                            Background="#F8FAFC"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1"
                             CornerRadius="18">
                             <StackPanel>
-                                <TextBlock Foreground="#D5ECE3" Text="Capture" />
-                                <TextBlock
-                                    Margin="0,6,0,0"
-                                    FontSize="15"
-                                    FontWeight="SemiBold"
-                                    Foreground="White"
-                                    Text="{Binding CaptureStateText}"
-                                    TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource SummaryLabelStyle}" Text="采集" />
+                                <StackPanel
+                                    Margin="0,8,0,0"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Style="{StaticResource StatusDotStyle}"
+                                        Fill="{Binding CaptureStatusBrush}" />
+                                    <TextBlock
+                                        Style="{StaticResource SummaryValueStyle}"
+                                        Text="{Binding CaptureStateText}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
-
-                        <Border
-                            Width="220"
-                            MinHeight="82"
-                            Margin="0,0,0,12"
-                            Padding="16,12"
-                            Background="#2F4467"
-                            CornerRadius="18">
-                            <StackPanel>
-                                <TextBlock Foreground="#D1DBF5" Text="Theme" />
-                                <TextBlock
-                                    Margin="0,6,0,0"
-                                    FontSize="15"
-                                    FontWeight="SemiBold"
-                                    Foreground="White"
-                                    Text="{Binding ThemeDescription}"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-                    </WrapPanel>
-                </StackPanel>
+                    </Grid>
+                </Grid>
             </Border>
 
-            <TabControl Grid.Row="1" Margin="0,20,0,0">
+            <Grid Grid.Row="1" Margin="0,20,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton
+                        Tag="0"
+                        GroupName="MainTabs"
+                        IsChecked="True"
+                        Checked="NavigationTabButton_OnChecked"
+                        Content="总览"
+                        Style="{StaticResource SegmentedNavButtonBaseStyle}" />
+                    <RadioButton
+                        Tag="1"
+                        GroupName="MainTabs"
+                        Checked="NavigationTabButton_OnChecked"
+                        Content="采集"
+                        Style="{StaticResource SegmentedNavButtonBaseStyle}" />
+                    <RadioButton
+                        Tag="2"
+                        Margin="0"
+                        GroupName="MainTabs"
+                        Checked="NavigationTabButton_OnChecked"
+                        Content="日志"
+                        Style="{StaticResource SegmentedNavButtonBaseStyle}" />
+                </StackPanel>
+
+                <TabControl
+                    x:Name="MainTabs"
+                    Grid.Row="1"
+                    Margin="0,18,0,0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    SelectedIndex="0"
+                    Style="{StaticResource SegmentedTabControlStyle}">
                 <TabItem Header="总览">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="0,16,0,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
+                        <Grid
+                            Margin="0,4,0,0"
+                            Grid.IsSharedSizeScope="True">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
-                                <ui:Card
-                                    Grid.Column="0"
-                                    MinHeight="330"
-                                    Margin="0,0,16,0"
-                                    Padding="18"
-                                    VerticalAlignment="Stretch">
-                                    <StackPanel>
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="设备连接区" />
-                                        <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="FX3 枚举、连接与断开控制" />
+                            <Border
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                MinHeight="320"
+                                Margin="0,0,16,16"
+                                Style="{StaticResource SurfacePanelStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
 
-                                        <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="FX3 Device" />
-                                        <ComboBox
-                                            Margin="0,0,0,12"
-                                            DisplayMemberPath="DisplayName"
-                                            ItemsSource="{Binding Fx3Devices}"
-                                            SelectedItem="{Binding SelectedFx3Device}" />
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="FX3 连接" />
 
-                                        <WrapPanel Margin="0,0,0,12">
-                                            <Button Margin="0,0,10,10" Command="{Binding RefreshDevicesCommand}" Content="刷新设备" />
-                                            <Button Margin="0,0,10,10" Command="{Binding ConnectFx3Command}" Content="连接 FX3" />
-                                            <Button Margin="0,0,10,10" Command="{Binding DisconnectFx3Command}" Content="断开 FX3" />
-                                        </WrapPanel>
-
-                                        <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="连接状态" />
-                                        <TextBlock Foreground="#475467" Text="{Binding Fx3ConnectionText}" />
-                                        <TextBlock Margin="0,14,0,4" FontWeight="SemiBold" Text="推荐接口" />
-                                        <TextBlock Foreground="#475467" Text="VID 0x04B4 / PID 0x00F1 / Bulk IN 0x81" />
-                                    </StackPanel>
-                                </ui:Card>
-
-                                <ui:Card
-                                    Grid.Column="1"
-                                    MinHeight="330"
-                                    Margin="0,0,16,0"
-                                    Padding="18"
-                                    VerticalAlignment="Stretch">
-                                    <StackPanel>
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="前端状态区" />
-                                        <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="HELLO + GET_STATUS 的 UI 映射" />
-
-                                        <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="Serial Port" />
-                                        <ComboBox
-                                            Margin="0,0,0,12"
-                                            ItemsSource="{Binding SerialPorts}"
-                                            SelectedItem="{Binding SelectedSerialPort}" />
-
-                                        <WrapPanel Margin="0,0,0,12">
-                                            <Button Margin="0,0,10,10" Command="{Binding ConnectFrontendCommand}" Content="连接前端" />
-                                            <Button Margin="0,0,10,10" Command="{Binding DisconnectFrontendCommand}" Content="断开前端" />
-                                        </WrapPanel>
-
-                                        <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="串口状态" />
-                                        <TextBlock Foreground="#475467" Text="{Binding FrontendConnectionText}" />
-                                        <TextBlock Margin="0,14,0,4" FontWeight="SemiBold" Text="协议快照" />
-                                        <TextBlock Foreground="#475467" Text="115200 / 8N1 / CRC16-IBM / HELLO first" />
-                                    </StackPanel>
-                                </ui:Card>
-
-                                <ui:Card
-                                    Grid.Column="2"
-                                    MinHeight="330"
-                                    Padding="18"
-                                    VerticalAlignment="Stretch">
-                                    <StackPanel>
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="FX3 状态区" />
-                                        <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="Active、USB Speed、事件计数和错误计数" />
-
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="1" Margin="0,20,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="设备" />
+                                        <Grid Margin="0,8,0,0">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="1.2*" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
 
-                                            <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Active" />
-                                            <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding Fx3ActiveText}" />
+                                            <ComboBox
+                                                Grid.Column="0"
+                                                Margin="0,0,12,0"
+                                                Style="{StaticResource PrimaryComboBoxStyle}"
+                                                DisplayMemberPath="DisplayName"
+                                                ItemsSource="{Binding Fx3Devices}"
+                                                SelectedItem="{Binding SelectedFx3Device}" />
 
-                                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="USB Speed" />
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding UsbSpeedText}" />
+                                            <Button
+                                                Grid.Column="1"
+                                                Command="{Binding RefreshDevicesCommand}"
+                                                Content="&#x5237;&#x65B0;"
+                                                Style="{StaticResource CompactButtonStyle}" />
 
-                                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="ProdEventCount" />
-                                            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding ProdEventCountText}" />
+                                            <Button
+                                                Grid.Column="2"
+                                                Command="{Binding ConnectFx3Command}"
+                                                Content="&#x8FDE;&#x63A5;"
+                                                Style="{StaticResource InlineActionButtonStyle}" />
 
-                                            <TextBlock Grid.Row="3" Grid.Column="0" FontWeight="SemiBold" Text="DmaErrorCount" />
-                                            <TextBlock Grid.Row="3" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding DmaErrorCountText}" />
+                                            <Button
+                                                Grid.Column="3"
+                                                Command="{Binding DisconnectFx3Command}"
+                                                Content="&#x65AD;&#x5F00;"
+                                                Style="{StaticResource InlineActionButtonStyle}" />
                                         </Grid>
                                     </StackPanel>
-                                </ui:Card>
-                            </Grid>
 
-                            <ui:Card
-                                MinHeight="360"
-                                Margin="0,20,0,0"
-                                Padding="18"
-                                VerticalAlignment="Stretch">
-                                <StackPanel>
-                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="前端关键状态" />
-                                    <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="pll_locked、antenna_ok、profile、频点、TCXO 与错误码" />
+                                    <WrapPanel Grid.Row="2" Margin="0,18,0,0" Visibility="Collapsed">
+                                        <Button Command="{Binding ConnectFx3Command}" Content="连接" Style="{StaticResource ActionButtonStyle}" />
+                                        <Button Command="{Binding DisconnectFx3Command}" Content="断开" Style="{StaticResource ActionButtonStyle}" />
+                                    </WrapPanel>
 
-                                    <Grid>
+                                    <Grid Grid.Row="2" Margin="0,22,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="OverviewLabel" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock
+                                            Grid.Row="0"
+                                            Grid.Column="0"
+                                            Margin="0,0,20,12"
+                                            Style="{StaticResource MetricLabelStyle}"
+                                            Text="连接状态" />
+                                        <StackPanel
+                                            Grid.Row="0"
+                                            Grid.Column="1"
+                                            Margin="0,0,0,12"
+                                            Style="{StaticResource StatusValuePanelStyle}">
+                                            <Ellipse
+                                                Style="{StaticResource StatusDotStyle}"
+                                                Fill="{Binding Fx3StatusBrush}" />
+                                            <TextBlock
+                                                Margin="8,0,0,0"
+                                                Style="{StaticResource StatusTextStyle}"
+                                                Text="{Binding Fx3ConnectionText}" />
+                                        </StackPanel>
+
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            Grid.Column="0"
+                                            Margin="0,0,20,0"
+                                            Style="{StaticResource MetricLabelStyle}"
+                                            Text="设备型号" />
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            Grid.Column="1"
+                                            Style="{StaticResource MetricValueStyle}"
+                                            Text="{Binding CurrentFx3DeviceText}" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <Border
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                MinHeight="320"
+                                Margin="0,0,0,16"
+                                Style="{StaticResource SurfacePanelStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="前端连接" />
+
+                                    <StackPanel Grid.Row="1" Margin="0,20,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="串口" />
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <ComboBox
+                                                Grid.Column="0"
+                                                Margin="0,0,12,0"
+                                                Style="{StaticResource PrimaryComboBoxStyle}"
+                                                ItemsSource="{Binding SerialPorts}"
+                                                SelectedItem="{Binding SelectedSerialPort}" />
+
+                                            <Button
+                                                Grid.Column="1"
+                                                Command="{Binding RefreshDevicesCommand}"
+                                                Content="&#x5237;&#x65B0;"
+                                                Style="{StaticResource CompactButtonStyle}" />
+
+                                            <Button
+                                                Grid.Column="2"
+                                                Command="{Binding ConnectFrontendCommand}"
+                                                Content="&#x8FDE;&#x63A5;"
+                                                Style="{StaticResource InlineActionButtonStyle}" />
+
+                                            <Button
+                                                Grid.Column="3"
+                                                Command="{Binding DisconnectFrontendCommand}"
+                                                Content="&#x65AD;&#x5F00;"
+                                                Style="{StaticResource InlineActionButtonStyle}" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <WrapPanel Grid.Row="2" Margin="0,18,0,0" Visibility="Collapsed">
+                                        <Button Command="{Binding ConnectFrontendCommand}" Content="连接" Style="{StaticResource ActionButtonStyle}" />
+                                        <Button Command="{Binding DisconnectFrontendCommand}" Content="断开" Style="{StaticResource ActionButtonStyle}" />
+                                    </WrapPanel>
+
+                                    <Grid Grid.Row="2" Margin="0,22,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="OverviewLabel" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock
+                                            Grid.Row="0"
+                                            Grid.Column="0"
+                                            Margin="0,0,20,12"
+                                            Style="{StaticResource MetricLabelStyle}"
+                                            Text="连接状态" />
+                                        <StackPanel
+                                            Grid.Row="0"
+                                            Grid.Column="1"
+                                            Margin="0,0,0,12"
+                                            Style="{StaticResource StatusValuePanelStyle}">
+                                            <Ellipse
+                                                Style="{StaticResource StatusDotStyle}"
+                                                Fill="{Binding FrontendStatusBrush}" />
+                                            <TextBlock
+                                                Margin="8,0,0,0"
+                                                Style="{StaticResource StatusTextStyle}"
+                                                Text="{Binding FrontendConnectionText}" />
+                                        </StackPanel>
+
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            Grid.Column="0"
+                                            Margin="0,0,20,0"
+                                            Style="{StaticResource MetricLabelStyle}"
+                                            Text="当前串口" />
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            Grid.Column="1"
+                                            Style="{StaticResource MetricValueStyle}"
+                                            Text="{Binding CurrentSerialPortText}" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <Border
+                                Grid.Row="1"
+                                Grid.Column="0"
+                                MinHeight="340"
+                                Margin="0,0,16,0"
+                                Style="{StaticResource SurfacePanelStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="FX3 状态" />
+
+                                    <Grid Grid.Row="1" Margin="0,20,0,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
@@ -299,103 +853,176 @@
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1.2*" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="OverviewLabel" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="PLL Lock" />
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding PllLockText}" />
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="连接状态" />
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource StatusValuePanelStyle}">
+                                            <Ellipse Style="{StaticResource StatusDotStyle}" Fill="{Binding Fx3StatusBrush}" />
+                                            <TextBlock Margin="8,0,0,0" Style="{StaticResource StatusTextStyle}" Text="{Binding Fx3ConnectionText}" />
+                                        </StackPanel>
 
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Antenna" />
-                                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding AntennaStatusText}" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="设备型号" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding CurrentFx3DeviceText}" />
 
-                                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Profile" />
-                                        <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding ActiveProfileText}" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="USB 速度" />
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding UsbSpeedText}" />
 
-                                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Current Freq" />
-                                        <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding CurrentFrequencyText}" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="数据流状态" />
+                                        <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource StatusValuePanelStyle}">
+                                            <Ellipse Style="{StaticResource StatusDotStyle}" Fill="{Binding Fx3StreamBrush}" />
+                                            <TextBlock Margin="8,0,0,0" Style="{StaticResource StatusTextStyle}" Text="{Binding Fx3ActiveText}" />
+                                        </StackPanel>
 
-                                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="TCXO" />
-                                        <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding TcxoFrequencyText}" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="Prod Event" />
+                                        <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding ProdEventCountText}" />
 
-                                        <TextBlock Grid.Row="5" Grid.Column="0" FontWeight="SemiBold" Text="Last Error" />
-                                        <TextBlock Grid.Row="5" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding FrontendLastErrorText}" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,20,0" Style="{StaticResource MetricLabelStyle}" Text="DMA 错误" />
+                                        <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding DmaErrorCountText}" />
                                     </Grid>
-                                </StackPanel>
-                            </ui:Card>
-                        </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                MinHeight="340"
+                                Style="{StaticResource SurfacePanelStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="前端状态" />
+
+                                    <Grid Grid.Row="1" Margin="0,20,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="OverviewLabel" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="连接状态" />
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource StatusValuePanelStyle}">
+                                            <Ellipse Style="{StaticResource StatusDotStyle}" Fill="{Binding FrontendStatusBrush}" />
+                                            <TextBlock Margin="8,0,0,0" Style="{StaticResource StatusTextStyle}" Text="{Binding FrontendConnectionText}" />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="当前串口" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding CurrentSerialPortText}" />
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="PLL Lock" />
+                                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource StatusValuePanelStyle}">
+                                            <Ellipse Style="{StaticResource StatusDotStyle}" Fill="{Binding PllLockBrush}" />
+                                            <TextBlock Margin="8,0,0,0" Style="{StaticResource StatusTextStyle}" Text="{Binding PllLockText}" />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="天线状态" />
+                                        <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource StatusValuePanelStyle}">
+                                            <Ellipse Style="{StaticResource StatusDotStyle}" Fill="{Binding AntennaStatusBrush}" />
+                                            <TextBlock Margin="8,0,0,0" Style="{StaticResource StatusTextStyle}" Text="{Binding AntennaStatusText}" />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="工作配置" />
+                                        <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding ActiveProfileText}" />
+
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,20,0" Style="{StaticResource MetricLabelStyle}" Text="最近错误" />
+                                        <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding FrontendLastErrorText}" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="采集">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <Grid Margin="0,16,0,0">
+                        <Grid
+                            Margin="0,4,0,0"
+                            Grid.IsSharedSizeScope="True">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.15*" />
-                                <ColumnDefinition Width="0.85*" />
+                                <ColumnDefinition Width="1.05*" />
+                                <ColumnDefinition Width="0.95*" />
                             </Grid.ColumnDefinitions>
 
-                            <ui:Card
+                            <Border
                                 Grid.Column="0"
-                                MinHeight="560"
+                                MinHeight="520"
                                 Margin="0,0,16,0"
-                                Padding="18"
-                                VerticalAlignment="Stretch">
-                                <StackPanel>
-                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="采集控制区" />
-                                    <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="操作员、输出目录、开始/停止/重置动作" />
+                                Style="{StaticResource SurfacePanelStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                                    <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="操作员姓名" />
-                                    <TextBox Margin="0,0,0,12" Text="{Binding OperatorName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="采集控制" />
 
-                                    <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="输出目录" />
-                                    <TextBox Margin="0,0,0,12" Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                                    <StackPanel Grid.Row="1" Margin="0,20,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="文件名前缀" />
+                                        <TextBox
+                                            Margin="0,8,0,0"
+                                            Style="{StaticResource PrimaryTextBoxStyle}"
+                                            Text="{Binding FileNamePrefix, UpdateSourceTrigger=PropertyChanged}" />
 
-                                    <WrapPanel Margin="0,0,0,14">
-                                        <Button Margin="0,0,10,10" Command="{Binding UseRecommendedOutputDirectoryCommand}" Content="使用推荐目录" />
-                                        <Button Margin="0,0,10,10" Command="{Binding StartCaptureCommand}" Content="开始采集" />
-                                        <Button Margin="0,0,10,10" Command="{Binding StopCaptureCommand}" Content="停止采集" />
-                                        <Button Margin="0,0,10,10" Command="{Binding ResetStreamCommand}" Content="重置流" />
+                                        <TextBlock
+                                            Margin="0,18,0,6"
+                                            Style="{StaticResource FieldLabelStyle}"
+                                            Text="预计文件名" />
+                                        <Border
+                                            Padding="14,12"
+                                            Background="#F8FAFC"
+                                            BorderBrush="#E2E8F0"
+                                            BorderThickness="1"
+                                            CornerRadius="14">
+                                            <TextBlock
+                                                Foreground="#0F172A"
+                                                Text="{Binding PreviewFileName}"
+                                                TextTrimming="CharacterEllipsis" />
+                                        </Border>
+
+                                        <TextBlock
+                                            Margin="0,18,0,6"
+                                            Style="{StaticResource FieldLabelStyle}"
+                                            Text="输出目录" />
+                                        <TextBox
+                                            Style="{StaticResource PrimaryTextBoxStyle}"
+                                            Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <WrapPanel Grid.Row="2" Margin="0,22,0,0">
+                                        <Button Command="{Binding UseRecommendedOutputDirectoryCommand}" Content="推荐目录" Style="{StaticResource ActionButtonStyle}" />
+                                        <Button Command="{Binding StartCaptureCommand}" Content="开始采集" Style="{StaticResource ActionButtonStyle}" />
+                                        <Button Command="{Binding StopCaptureCommand}" Content="停止采集" Style="{StaticResource ActionButtonStyle}" />
+                                        <Button Command="{Binding ResetStreamCommand}" Content="重置流" Style="{StaticResource ActionButtonStyle}" />
                                     </WrapPanel>
+                                </Grid>
+                            </Border>
 
-                                    <Border Padding="14" Background="#EDF4FF" CornerRadius="16">
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" Foreground="#1F4F8D" Text="当前实现说明" />
-                                            <TextBlock
-                                                Margin="0,6,0,0"
-                                                Foreground="#31567A"
-                                                TextWrapping="Wrap"
-                                                Text="为了保证项目骨架先可启动、可演示、可继续扩展，目前 UI 驱动的是 mock 基础设施。后续将 Infrastructure.USB / Serial / Storage 中的 mock 类替换成真实驱动即可接入硬件。" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border
-                                        Margin="0,16,0,0"
-                                        Padding="14"
-                                        Background="#F7F9FC"
-                                        CornerRadius="16">
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" Text="分页设计说明" />
-                                            <TextBlock
-                                                Margin="0,6,0,0"
-                                                Foreground="#667085"
-                                                TextWrapping="Wrap"
-                                                Text="总览页专注连接与状态，采集页专注控制与会话，诊断页专注日志与后台线程。这样既避免一页过长，也让操作路径更清晰。" />
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </ui:Card>
-
-                            <ui:Card
+                            <Border
                                 Grid.Column="1"
-                                MinHeight="560"
-                                Padding="18"
-                                VerticalAlignment="Stretch">
-                                <StackPanel>
-                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="采集信息区" />
-                                    <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="当前文件、吞吐、ring buffer 和 session 起始时间" />
+                                MinHeight="520"
+                                Style="{StaticResource SurfacePanelStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                                    <Grid>
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="采集信息" />
+
+                                    <Grid Grid.Row="1" Margin="0,20,0,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
@@ -405,148 +1032,86 @@
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1.2*" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="CaptureLabel" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="当前文件" />
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding CurrentFileName}" />
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="当前文件" />
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding CurrentFileName}" />
 
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="已接收字节" />
-                                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding BytesReceivedText}" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="已接收字节" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding BytesReceivedText}" />
 
-                                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="已写入字节" />
-                                        <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding BytesWrittenText}" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="已写入字节" />
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding BytesWrittenText}" />
 
-                                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="写入速率" />
-                                        <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding WriteRateText}" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="写入速率" />
+                                        <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding WriteRateText}" />
 
-                                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Session Start" />
-                                        <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding SessionStartText}" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,20,12" Style="{StaticResource MetricLabelStyle}" Text="开始时间" />
+                                        <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,12" Style="{StaticResource MetricValueStyle}" Text="{Binding SessionStartText}" />
 
-                                        <TextBlock Grid.Row="5" Grid.Column="0" FontWeight="SemiBold" Text="Buffer Peak" />
-                                        <TextBlock Grid.Row="5" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding RingBufferPeakText}" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,20,0" Style="{StaticResource MetricLabelStyle}" Text="Buffer 峰值" />
+                                        <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding RingBufferPeakText}" />
                                     </Grid>
 
-                                    <TextBlock Margin="0,18,0,6" FontWeight="SemiBold" Text="Ring Buffer 占用" />
-                                    <ProgressBar Height="10" Maximum="100" Value="{Binding RingBufferUsagePercent, Mode=OneWay}" />
-
-                                    <Border
-                                        Margin="0,18,0,0"
-                                        Padding="14"
-                                        Background="#F7F9FC"
-                                        CornerRadius="16">
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" Text="使用建议" />
-                                            <TextBlock
-                                                Margin="0,6,0,0"
-                                                Foreground="#667085"
-                                                TextWrapping="Wrap"
-                                                Text="后续接入真实设备后，这里适合继续扩展实时带宽、写盘延迟、异常告警和 metadata 生成状态。" />
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </ui:Card>
+                                    <StackPanel Grid.Row="2" Margin="0,24,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Ring Buffer 占用" />
+                                        <ProgressBar
+                                            Margin="0,10,0,0"
+                                            Maximum="100"
+                                            Style="{StaticResource MinimalProgressBarStyle}"
+                                            Value="{Binding RingBufferUsagePercent, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </Grid>
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="诊断与日志">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="0,16,0,0">
+                <TabItem Header="日志">
+                    <Grid Margin="0,4,0,0">
+                        <Border Style="{StaticResource SurfacePanelStyle}">
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="1.15*" />
-                                    <ColumnDefinition Width="0.85*" />
-                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
 
-                                <ui:Card
-                                    Grid.Column="0"
-                                    MinHeight="420"
-                                    Margin="0,0,16,0"
-                                    Padding="18"
-                                    VerticalAlignment="Stretch">
-                                    <StackPanel>
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="前端关键状态" />
-                                        <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="pll_locked、antenna_ok、profile、频点、TCXO 与错误码" />
+                                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="日志" />
 
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="1.2*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="PLL Lock" />
-                                            <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding PllLockText}" />
-
-                                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Antenna" />
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding AntennaStatusText}" />
-
-                                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Profile" />
-                                            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding ActiveProfileText}" />
-
-                                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="Current Freq" />
-                                            <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding CurrentFrequencyText}" />
-
-                                            <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,0,10" FontWeight="SemiBold" Text="TCXO" />
-                                            <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" HorizontalAlignment="Right" Text="{Binding TcxoFrequencyText}" />
-
-                                            <TextBlock Grid.Row="5" Grid.Column="0" FontWeight="SemiBold" Text="Last Error" />
-                                            <TextBlock Grid.Row="5" Grid.Column="1" HorizontalAlignment="Right" Text="{Binding FrontendLastErrorText}" />
-                                        </Grid>
-                                    </StackPanel>
-                                </ui:Card>
-
-                                <ui:Card
-                                    Grid.Column="1"
-                                    MinHeight="420"
-                                    Padding="18"
-                                    VerticalAlignment="Stretch">
-                                    <StackPanel>
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="后台工作线程模型" />
-                                        <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="来自规格的三条核心 worker 责任拆分" />
-
-                                        <ItemsControl ItemsSource="{Binding BackgroundWorkers}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Margin="0,0,0,10" Padding="12" Background="#F7F9FC" CornerRadius="14">
-                                                        <TextBlock TextWrapping="Wrap" Text="{Binding}" />
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </ui:Card>
+                                <DataGrid
+                                    Grid.Row="1"
+                                    Margin="0,18,0,0"
+                                    CellStyle="{StaticResource LogCellStyle}"
+                                    ColumnHeaderStyle="{StaticResource LogColumnHeaderStyle}"
+                                    ItemsSource="{Binding Logs}"
+                                    RowStyle="{StaticResource LogRowStyle}"
+                                    Style="{StaticResource LogDataGridStyle}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn
+                                            Binding="{Binding TimestampDisplay}"
+                                            ElementStyle="{StaticResource LogCellTextStyle}"
+                                            Header="时间"
+                                            Width="120" />
+                                        <DataGridTextColumn
+                                            Binding="{Binding SeverityDisplay}"
+                                            ElementStyle="{StaticResource LogCellTextStyle}"
+                                            Header="级别"
+                                            Width="110" />
+                                        <DataGridTextColumn
+                                            Binding="{Binding Message}"
+                                            ElementStyle="{StaticResource LogCellTextStyle}"
+                                            Header="消息"
+                                            Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
                             </Grid>
-
-                            <ui:Card Margin="0,20,0,0" Padding="18">
-                                <StackPanel>
-                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="日志区" />
-                                    <TextBlock Margin="0,4,0,14" Foreground="#65758B" Text="时间戳、级别和消息流。后续接入真实驱动后，这里会直接承接协议、状态机和错误恢复日志。" />
-
-                                    <ListView MinHeight="360" ItemsSource="{Binding Logs}">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Width="90" DisplayMemberBinding="{Binding TimestampDisplay}" Header="Time" />
-                                                <GridViewColumn Width="90" DisplayMemberBinding="{Binding SeverityDisplay}" Header="Level" />
-                                                <GridViewColumn Width="1100" DisplayMemberBinding="{Binding Message}" Header="Message" />
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
-                                </StackPanel>
-                            </ui:Card>
-                        </StackPanel>
-                    </ScrollViewer>
+                        </Border>
+                    </Grid>
                 </TabItem>
-            </TabControl>
+                </TabControl>
+            </Grid>
         </Grid>
     </Grid>
 </ui:FluentWindow>

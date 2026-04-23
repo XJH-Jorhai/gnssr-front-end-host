@@ -13,7 +13,7 @@ public interface ICaptureSessionService
     CaptureSessionInfo? CurrentSession { get; }
 
     Task<CaptureSessionInfo> StartAsync(
-        string operatorName,
+        string fileNamePrefix,
         string outputDirectory,
         Fx3DeviceInfo device,
         Fx3Status fx3Status,

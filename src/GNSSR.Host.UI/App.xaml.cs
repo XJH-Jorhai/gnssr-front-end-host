@@ -27,14 +27,15 @@ public partial class App : Application
 
             var logger = new InMemoryLogService();
             var fileNamingPolicy = new FileNamingPolicy();
-            var fx3UsbService = new MockFx3UsbService(logger);
-            var frontendSerialService = new MockFrontendSerialService(logger);
+            var fx3UsbService = new WindowsFx3UsbService(logger);
+            var frontendSerialService = new WindowsFrontendSerialService(logger);
             var captureSessionService = new MockCaptureSessionService(fileNamingPolicy, logger);
 
             var viewModel = new MainViewModel(
                 fx3UsbService,
                 frontendSerialService,
                 captureSessionService,
+                fileNamingPolicy,
                 logger);
 
             var mainWindow = new MainWindow(viewModel);
@@ -84,7 +85,7 @@ public partial class App : Application
 
             MessageBox.Show(
                 $"{message}\n\nA copy was written to:\n{logPath}",
-                "GNSSR Host Error",
+                "GNSSR 采集控制台错误",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }

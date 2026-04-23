@@ -4,7 +4,7 @@ public sealed class CaptureSessionInfo
 {
     public required string SessionId { get; init; }
 
-    public required string OperatorName { get; init; }
+    public required string FileNamePrefix { get; init; }
 
     public required string OutputDirectory { get; init; }
 
