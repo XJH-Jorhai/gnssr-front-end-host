@@ -5,9 +5,9 @@ namespace GNSSR.Host.Core.Services;
 
 public sealed class FileNamingPolicy
 {
-    public string SanitizeOperatorName(string? operatorName)
+    public string SanitizeFileNamePrefix(string? fileNamePrefix)
     {
-        var fallback = string.IsNullOrWhiteSpace(operatorName) ? "Operator" : operatorName.Trim();
+        var fallback = string.IsNullOrWhiteSpace(fileNamePrefix) ? "capture" : fileNamePrefix.Trim();
         var invalidCharacters = Path.GetInvalidFileNameChars().ToHashSet();
         var builder = new StringBuilder();
 
@@ -28,16 +28,21 @@ public sealed class FileNamingPolicy
         }
 
         var sanitized = builder.ToString().Trim('_');
-        return string.IsNullOrWhiteSpace(sanitized) ? "Operator" : sanitized;
+        return string.IsNullOrWhiteSpace(sanitized) ? "capture" : sanitized;
     }
 
-    public CaptureFilePaths CreateSessionPaths(string? operatorName, string outputDirectory, DateTimeOffset? timestamp = null)
+    public string BuildBaseFileName(string? fileNamePrefix, DateTimeOffset timestamp)
+    {
+        var prefixToken = SanitizeFileNamePrefix(fileNamePrefix);
+        return $"{prefixToken}[{timestamp:yyyy.MM.dd HH.mm.ss}]";
+    }
+
+    public CaptureFilePaths CreateSessionPaths(string? fileNamePrefix, string outputDirectory, DateTimeOffset? timestamp = null)
     {
         Directory.CreateDirectory(outputDirectory);
 
-        var operatorToken = SanitizeOperatorName(operatorName);
         var captureTime = timestamp ?? DateTimeOffset.Now;
-        var baseFileName = $"{operatorToken}_{captureTime:yyyyMMdd_HHmmss}";
+        var baseFileName = BuildBaseFileName(fileNamePrefix, captureTime);
         var candidate = baseFileName;
         var sequence = 1;
 
