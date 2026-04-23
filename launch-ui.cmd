@@ -14,17 +14,21 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [2/3] Building solution...
-dotnet build .\GNSSR.Host.sln -c Debug -nologo
+echo [2/3] Preparing local SDK workaround...
+set "MSBuildEnableWorkloadResolver=false"
+
+echo [3/4] Building solution...
+dotnet build .\GNSSR.Host.sln -c Debug -nologo -m:1 -p:BuildInParallel=false
 if errorlevel 1 (
     echo.
     echo Build failed. Please read the messages above.
+    echo The current machine is using a temporary local workaround for a broken .NET workload resolver.
     echo.
     pause
     exit /b 1
 )
 
-echo [3/3] Launching GNSSR Host UI...
+echo [4/4] Launching GNSSR Host UI...
 ".\src\GNSSR.Host.UI\bin\Debug\net8.0-windows\GNSSR.Host.UI.exe"
 if errorlevel 1 (
     echo.

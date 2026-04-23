@@ -1,19 +1,29 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using GNSSR.Host.Core.Abstractions;
-using GNSSR.Host.Core.Enums;
 using GNSSR.Host.Core.Models;
+using GNSSR.Host.Core.Services;
 using GNSSR.Host.UI.Infrastructure;
 
 namespace GNSSR.Host.UI.ViewModels;
 
 public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 {
+    private static readonly SolidColorBrush NeutralBrush = CreateBrush("#94A3B8");
+    private static readonly SolidColorBrush AccentBrush = CreateBrush("#2563EB");
+    private static readonly SolidColorBrush SuccessBrush = CreateBrush("#16A34A");
+    private static readonly SolidColorBrush WarningBrush = CreateBrush("#D97706");
+    private static readonly SolidColorBrush DangerBrush = CreateBrush("#DC2626");
+
     private readonly IFx3UsbService _fx3UsbService;
     private readonly IFrontendSerialService _frontendSerialService;
     private readonly ICaptureSessionService _captureSessionService;
+    private readonly FileNamingPolicy _fileNamingPolicy;
     private readonly IAppLogger _logger;
     private readonly CancellationTokenSource _applicationTokenSource = new();
 
@@ -21,21 +31,19 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private bool _isInitialized;
     private bool _fx3Connected;
     private bool _frontendConnected;
-    private string _operatorName = Environment.UserName;
+    private string _fileNamePrefix = "capture";
     private string _outputDirectory = BuildDefaultOutputDirectory();
-    private string _appStateText = "Idle / 等待设备";
+    private string _appStateText = "等待连接";
     private string _fx3ConnectionText = "未连接";
     private string _frontendConnectionText = "未连接";
     private string _captureStateText = "未采集";
-    private string _fx3ActiveText = "Inactive";
+    private string _fx3ActiveText = "未启动";
     private string _usbSpeedText = "--";
     private string _prodEventCountText = "0";
     private string _dmaErrorCountText = "0";
-    private string _pllLockText = "Unknown";
-    private string _antennaStatusText = "Unknown";
-    private string _activeProfileText = "--";
-    private string _currentFrequencyText = "--";
-    private string _tcxoFrequencyText = "--";
+    private string _pllLockText = "未知";
+    private string _antennaStatusText = "未知";
+    private string _activeProfileText = "未读取";
     private string _frontendLastErrorText = "0x0000";
     private string _currentFileName = "尚未开始";
     private string _bytesReceivedText = "0 B";
@@ -52,22 +60,18 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         IFx3UsbService fx3UsbService,
         IFrontendSerialService frontendSerialService,
         ICaptureSessionService captureSessionService,
+        FileNamingPolicy fileNamingPolicy,
         IAppLogger logger)
     {
         _fx3UsbService = fx3UsbService;
         _frontendSerialService = frontendSerialService;
         _captureSessionService = captureSessionService;
+        _fileNamingPolicy = fileNamingPolicy;
         _logger = logger;
 
         Fx3Devices = [];
         SerialPorts = [];
         Logs = [];
-        BackgroundWorkers =
-        [
-            "usb_receive_worker: 批量提交 Bulk IN 读取，维护 bytes_received 统计。",
-            "disk_writer_worker: 消费 ring buffer，顺序写出 .bin 与 metadata。",
-            "status_monitor_worker: 轮询 FX3/Frontend 状态并驱动 UI 告警。"
-        ];
 
         RefreshDevicesCommand = new AsyncRelayCommand(RefreshDevicesAsync, () => !_isBusy && !_captureSessionService.IsCapturing);
         ConnectFx3Command = new AsyncRelayCommand(ConnectFx3Async, () => !_isBusy && !_fx3Connected && SelectedFx3Device is not null);
@@ -88,8 +92,6 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public ObservableCollection<string> SerialPorts { get; }
 
     public ObservableCollection<LogEntry> Logs { get; }
-
-    public ObservableCollection<string> BackgroundWorkers { get; }
 
     public AsyncRelayCommand RefreshDevicesCommand { get; }
 
@@ -112,34 +114,59 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public string AppStateText
     {
         get => _appStateText;
-        private set => SetProperty(ref _appStateText, value);
+        private set
+        {
+            if (SetProperty(ref _appStateText, value))
+            {
+                OnPropertyChanged(nameof(AppStateBrush));
+            }
+        }
     }
 
     public string Fx3ConnectionText
     {
         get => _fx3ConnectionText;
-        private set => SetProperty(ref _fx3ConnectionText, value);
+        private set
+        {
+            if (SetProperty(ref _fx3ConnectionText, value))
+            {
+                OnPropertyChanged(nameof(Fx3StatusBrush));
+            }
+        }
     }
 
     public string FrontendConnectionText
     {
         get => _frontendConnectionText;
-        private set => SetProperty(ref _frontendConnectionText, value);
+        private set
+        {
+            if (SetProperty(ref _frontendConnectionText, value))
+            {
+                OnPropertyChanged(nameof(FrontendStatusBrush));
+            }
+        }
     }
 
     public string CaptureStateText
     {
         get => _captureStateText;
-        private set => SetProperty(ref _captureStateText, value);
+        private set
+        {
+            if (SetProperty(ref _captureStateText, value))
+            {
+                OnPropertyChanged(nameof(CaptureStatusBrush));
+            }
+        }
     }
 
-    public string OperatorName
+    public string FileNamePrefix
     {
-        get => _operatorName;
+        get => _fileNamePrefix;
         set
         {
-            if (SetProperty(ref _operatorName, value))
+            if (SetProperty(ref _fileNamePrefix, value))
             {
+                OnPropertyChanged(nameof(PreviewFileName));
                 RefreshCommandStates();
             }
         }
@@ -164,6 +191,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             if (SetProperty(ref _selectedFx3Device, value))
             {
+                OnPropertyChanged(nameof(CurrentFx3DeviceText));
                 RefreshCommandStates();
             }
         }
@@ -176,6 +204,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             if (SetProperty(ref _selectedSerialPort, value))
             {
+                OnPropertyChanged(nameof(CurrentSerialPortText));
                 RefreshCommandStates();
             }
         }
@@ -184,7 +213,13 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public string Fx3ActiveText
     {
         get => _fx3ActiveText;
-        private set => SetProperty(ref _fx3ActiveText, value);
+        private set
+        {
+            if (SetProperty(ref _fx3ActiveText, value))
+            {
+                OnPropertyChanged(nameof(Fx3StreamBrush));
+            }
+        }
     }
 
     public string UsbSpeedText
@@ -208,31 +243,31 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public string PllLockText
     {
         get => _pllLockText;
-        private set => SetProperty(ref _pllLockText, value);
+        private set
+        {
+            if (SetProperty(ref _pllLockText, value))
+            {
+                OnPropertyChanged(nameof(PllLockBrush));
+            }
+        }
     }
 
     public string AntennaStatusText
     {
         get => _antennaStatusText;
-        private set => SetProperty(ref _antennaStatusText, value);
+        private set
+        {
+            if (SetProperty(ref _antennaStatusText, value))
+            {
+                OnPropertyChanged(nameof(AntennaStatusBrush));
+            }
+        }
     }
 
     public string ActiveProfileText
     {
         get => _activeProfileText;
         private set => SetProperty(ref _activeProfileText, value);
-    }
-
-    public string CurrentFrequencyText
-    {
-        get => _currentFrequencyText;
-        private set => SetProperty(ref _currentFrequencyText, value);
-    }
-
-    public string TcxoFrequencyText
-    {
-        get => _tcxoFrequencyText;
-        private set => SetProperty(ref _tcxoFrequencyText, value);
     }
 
     public string FrontendLastErrorText
@@ -283,11 +318,50 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         private set => SetProperty(ref _ringBufferUsagePercent, value);
     }
 
-    public string ThemeDescription => "WPF UI 4.2.0 / Fluent Light";
+    public string CurrentFx3DeviceText => SelectedFx3Device?.DisplayName ?? "未选择";
 
-    public string StackDescription => ".NET 8 + WPF + MVVM shell";
+    public string CurrentSerialPortText => string.IsNullOrWhiteSpace(SelectedSerialPort) ? "未选择" : SelectedSerialPort;
 
-    public string ThroughputTargetText => "26 MB/s stream / 30 MB/s sustained disk";
+    public string PreviewFileName => $"{_fileNamingPolicy.BuildBaseFileName(FileNamePrefix, DateTimeOffset.Now)}.bin";
+
+    public Brush AppStateBrush => _captureSessionService.IsCapturing
+        ? SuccessBrush
+        : _isBusy
+            ? WarningBrush
+            : _fx3Connected && _frontendConnected
+                ? AccentBrush
+                : NeutralBrush;
+
+    public Brush Fx3StatusBrush => _fx3Connected ? SuccessBrush : NeutralBrush;
+
+    public Brush FrontendStatusBrush => _frontendConnected ? SuccessBrush : NeutralBrush;
+
+    public Brush CaptureStatusBrush => _captureSessionService.IsCapturing
+        ? SuccessBrush
+        : _isBusy
+            ? WarningBrush
+            : NeutralBrush;
+
+    public Brush Fx3StreamBrush => Fx3ActiveText switch
+    {
+        "采集中" => SuccessBrush,
+        "待机" => AccentBrush,
+        _ => NeutralBrush
+    };
+
+    public Brush PllLockBrush => PllLockText switch
+    {
+        "已锁定" => SuccessBrush,
+        "未锁定" => WarningBrush,
+        _ => NeutralBrush
+    };
+
+    public Brush AntennaStatusBrush => AntennaStatusText switch
+    {
+        "正常" => SuccessBrush,
+        "异常" => DangerBrush,
+        _ => NeutralBrush
+    };
 
     public async Task InitializeAsync()
     {
@@ -297,8 +371,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         _isInitialized = true;
-        _logger.Info("GNSSR Host skeleton bootstrapped.");
-        _logger.Info("Current infrastructure layer uses mock FX3/serial/capture services for UI and workflow validation.");
+        _logger.Info("GNSSR 采集控制台已启动。");
+        _logger.Info("已加载本机设备发现适配器，当前界面将显示实际串口与 FX3 设备枚举结果。");
 
         await RefreshDevicesAsync();
     }
@@ -327,7 +401,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     {
         await RunBusyAsync(async () =>
         {
-            AppStateText = "Discovering / 扫描设备中";
+            AppStateText = "扫描设备";
+
+            var previousDeviceId = SelectedFx3Device?.DeviceId;
+            var previousSerialPort = SelectedSerialPort;
+
             Fx3Devices.Clear();
             SerialPorts.Clear();
 
@@ -343,11 +421,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 SerialPorts.Add(port);
             }
 
-            SelectedFx3Device ??= Fx3Devices.FirstOrDefault();
-            SelectedSerialPort ??= SerialPorts.FirstOrDefault();
+            SelectedFx3Device = Fx3Devices.FirstOrDefault(device => device.DeviceId == previousDeviceId) ?? Fx3Devices.FirstOrDefault();
+            SelectedSerialPort = SerialPorts.FirstOrDefault(port => string.Equals(port, previousSerialPort, StringComparison.OrdinalIgnoreCase)) ?? SerialPorts.FirstOrDefault();
 
-            AppStateText = "Idle / 等待连接";
-            _logger.Info($"Discovery completed: {Fx3Devices.Count} FX3 device(s), {SerialPorts.Count} serial port(s).");
+            RefreshReadyState();
+            _logger.Info($"设备扫描完成：{Fx3Devices.Count} 个 FX3，{SerialPorts.Count} 个串口。");
         });
     }
 
@@ -364,12 +442,12 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             var status = await _fx3UsbService.GetStatusAsync(_applicationTokenSource.Token);
 
             _fx3Connected = true;
-            Fx3ConnectionText = $"{SelectedFx3Device.DisplayName} / 已连接";
-            Fx3ActiveText = status.Active ? "Streaming" : "Standby";
+            Fx3ConnectionText = "已连接";
+            Fx3ActiveText = status.Active ? "采集中" : "待机";
             UsbSpeedText = status.UsbSpeed;
             ProdEventCountText = status.ProdEventCount.ToString("N0", CultureInfo.InvariantCulture);
             DmaErrorCountText = status.DmaErrorCount.ToString("N0", CultureInfo.InvariantCulture);
-            AppStateText = _frontendConnected ? "ReadyToCapture / 可开始采集" : "DeviceReady / FX3 已就绪";
+            RefreshReadyState();
         });
     }
 
@@ -380,11 +458,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             await _fx3UsbService.DisconnectAsync(_applicationTokenSource.Token);
             _fx3Connected = false;
             Fx3ConnectionText = "未连接";
-            Fx3ActiveText = "Inactive";
+            Fx3ActiveText = "未启动";
             UsbSpeedText = "--";
             ProdEventCountText = "0";
             DmaErrorCountText = "0";
-            AppStateText = _frontendConnected ? "FrontendReady / 等待 FX3" : "Idle / 等待连接";
+            RefreshReadyState();
         });
     }
 
@@ -401,14 +479,12 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             var status = await _frontendSerialService.GetStatusAsync(_applicationTokenSource.Token);
 
             _frontendConnected = true;
-            FrontendConnectionText = $"{SelectedSerialPort} / 已连接";
-            PllLockText = status.PllLocked ? "Locked" : "Unlocked";
-            AntennaStatusText = status.AntennaOk ? "Normal" : "Fault";
-            ActiveProfileText = $"Profile {status.ActiveProfile}";
-            CurrentFrequencyText = $"{status.CurrentFrequencyHz:N0} Hz";
-            TcxoFrequencyText = $"{status.TcxoFrequencyHz:N0} Hz";
+            FrontendConnectionText = "已连接";
+            PllLockText = status.PllLocked ? "已锁定" : "未锁定";
+            AntennaStatusText = status.AntennaOk ? "正常" : "异常";
+            ActiveProfileText = $"配置 {status.ActiveProfile}";
             FrontendLastErrorText = $"0x{status.LastError:X4}";
-            AppStateText = _fx3Connected ? "ReadyToCapture / 可开始采集" : "FrontendReady / 串口链路已就绪";
+            RefreshReadyState();
         });
     }
 
@@ -419,13 +495,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             await _frontendSerialService.DisconnectAsync(_applicationTokenSource.Token);
             _frontendConnected = false;
             FrontendConnectionText = "未连接";
-            PllLockText = "Unknown";
-            AntennaStatusText = "Unknown";
-            ActiveProfileText = "--";
-            CurrentFrequencyText = "--";
-            TcxoFrequencyText = "--";
+            PllLockText = "未知";
+            AntennaStatusText = "未知";
+            ActiveProfileText = "未读取";
             FrontendLastErrorText = "0x0000";
-            AppStateText = _fx3Connected ? "DeviceReady / 仅 FX3 已连接" : "Idle / 等待连接";
+            RefreshReadyState();
         });
     }
 
@@ -438,24 +512,24 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         await RunBusyAsync(async () =>
         {
-            AppStateText = "StartingCapture / 启动采集中";
-            CaptureStateText = "Starting";
+            AppStateText = "正在启动";
+            CaptureStateText = "准备中";
 
             var fx3Status = await _fx3UsbService.GetStatusAsync(_applicationTokenSource.Token);
             _currentSession = await _captureSessionService.StartAsync(
-                OperatorName,
+                FileNamePrefix,
                 OutputDirectory,
                 SelectedFx3Device,
                 fx3Status,
                 _applicationTokenSource.Token);
 
-            Fx3ActiveText = "Streaming";
+            Fx3ActiveText = "采集中";
             CurrentFileName = Path.GetFileName(_currentSession.BinPath);
             SessionStartText = _currentSession.StartTimeHost.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
-            CaptureStateText = "Capturing";
-            AppStateText = "Capturing / 采集中";
+            CaptureStateText = "采集中";
+            AppStateText = "采集中";
 
-            _logger.Info($"Capture started for operator '{OperatorName}' to '{OutputDirectory}'.");
+            _logger.Info($"开始采集：{CurrentFileName} -> {OutputDirectory}");
         });
     }
 
@@ -463,19 +537,19 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     {
         await RunBusyAsync(async () =>
         {
-            AppStateText = "StoppingCapture / 正在停止";
-            CaptureStateText = "Stopping";
+            AppStateText = "正在停止";
+            CaptureStateText = "停止中";
 
             var completedSession = await _captureSessionService.StopAsync("user_requested", _applicationTokenSource.Token);
             if (completedSession is not null)
             {
                 _currentSession = completedSession;
-                _logger.Info($"Metadata written: {completedSession.JsonPath}");
+                _logger.Info($"元数据已写入：{completedSession.JsonPath}");
             }
 
-            Fx3ActiveText = "Standby";
-            CaptureStateText = "Stopped";
-            AppStateText = _fx3Connected && _frontendConnected ? "ReadyToCapture / 可再次开始采集" : "Idle / 等待连接";
+            Fx3ActiveText = "待机";
+            CaptureStateText = "已停止";
+            RefreshReadyState();
         });
     }
 
@@ -484,16 +558,17 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         await RunBusyAsync(async () =>
         {
             await _fx3UsbService.ResetStreamAsync(_applicationTokenSource.Token);
-            Fx3ActiveText = "Standby";
+            Fx3ActiveText = "待机";
             ProdEventCountText = "0";
             DmaErrorCountText = "0";
+            _logger.Info("已重置 FX3 数据流。");
         });
     }
 
     private void UseRecommendedOutputDirectory()
     {
         OutputDirectory = BuildDefaultOutputDirectory();
-        _logger.Info($"Output directory set to '{OutputDirectory}'.");
+        _logger.Info($"输出目录已设为：{OutputDirectory}");
     }
 
     private async Task RunBusyAsync(Func<Task> action)
@@ -502,23 +577,25 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             _isBusy = true;
             RefreshCommandStates();
+            RaiseStatusIndicatorsChanged();
             await action();
         }
         catch (OperationCanceledException)
         {
-            _logger.Warning("Operation canceled.");
-            AppStateText = "Error / 操作已取消";
+            _logger.Warning("操作已取消。");
+            AppStateText = "操作已取消";
         }
         catch (Exception exception)
         {
             _logger.Error(exception.Message);
-            AppStateText = "Error / 请检查日志";
-            CaptureStateText = _captureSessionService.IsCapturing ? "Capturing" : "Stopped";
+            AppStateText = "请检查日志";
+            CaptureStateText = _captureSessionService.IsCapturing ? "采集中" : "已停止";
         }
         finally
         {
             _isBusy = false;
             RefreshCommandStates();
+            RaiseStatusIndicatorsChanged();
         }
     }
 
@@ -528,7 +605,6 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                _fx3Connected &&
                _frontendConnected &&
                !_captureSessionService.IsCapturing &&
-               !string.IsNullOrWhiteSpace(OperatorName) &&
                !string.IsNullOrWhiteSpace(OutputDirectory);
     }
 
@@ -570,6 +646,29 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         UseRecommendedOutputDirectoryCommand.RaiseCanExecuteChanged();
     }
 
+    private void RefreshReadyState()
+    {
+        AppStateText = _fx3Connected && _frontendConnected
+            ? "可开始采集"
+            : _fx3Connected
+                ? "等待前端连接"
+                : _frontendConnected
+                    ? "等待 FX3 连接"
+                    : "等待连接";
+    }
+
+    private void RaiseStatusIndicatorsChanged()
+    {
+        OnPropertyChanged(nameof(AppStateBrush));
+        OnPropertyChanged(nameof(Fx3StatusBrush));
+        OnPropertyChanged(nameof(FrontendStatusBrush));
+        OnPropertyChanged(nameof(CaptureStatusBrush));
+        OnPropertyChanged(nameof(Fx3StreamBrush));
+        OnPropertyChanged(nameof(PllLockBrush));
+        OnPropertyChanged(nameof(AntennaStatusBrush));
+        OnPropertyChanged(nameof(PreviewFileName));
+    }
+
     private static string BuildDefaultOutputDirectory()
     {
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
@@ -583,9 +682,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private static string FormatBytes(long bytes)
     {
         string[] units = ["B", "KB", "MB", "GB", "TB"];
-        var size = bytes;
+        double scaledSize = bytes;
         var unitIndex = 0;
-        double scaledSize = size;
 
         while (scaledSize >= 1024 && unitIndex < units.Length - 1)
         {
@@ -594,5 +692,12 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         return $"{scaledSize:0.##} {units[unitIndex]}";
+    }
+
+    private static SolidColorBrush CreateBrush(string hex)
+    {
+        var brush = (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
+        brush.Freeze();
+        return brush;
     }
 }
