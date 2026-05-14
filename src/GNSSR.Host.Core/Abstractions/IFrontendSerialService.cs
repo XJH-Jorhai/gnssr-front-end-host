@@ -15,4 +15,8 @@ public interface IFrontendSerialService
     Task DisconnectAsync(CancellationToken cancellationToken);
 
     Task<FrontendStatus> GetStatusAsync(CancellationToken cancellationToken);
+
+    Task LoadDefaultProfileAsync(byte channelMask, byte profileId, CancellationToken cancellationToken);
+
+    Task SetCenterFrequencyAsync(byte channelMask, uint centerFrequencyHz, CancellationToken cancellationToken);
 }

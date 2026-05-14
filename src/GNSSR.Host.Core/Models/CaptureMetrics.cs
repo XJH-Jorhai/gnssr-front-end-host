@@ -12,6 +12,10 @@ public sealed class CaptureMetrics
 
     public int RingBufferPeakPercent { get; set; }
 
+    public uint ProdEventCount { get; set; }
+
+    public uint DmaErrorCount { get; set; }
+
     public CaptureMetrics Clone()
     {
         return new CaptureMetrics
@@ -20,7 +24,9 @@ public sealed class CaptureMetrics
             BytesWritten = BytesWritten,
             WriteRateBytesPerSecond = WriteRateBytesPerSecond,
             RingBufferUsagePercent = RingBufferUsagePercent,
-            RingBufferPeakPercent = RingBufferPeakPercent
+            RingBufferPeakPercent = RingBufferPeakPercent,
+            ProdEventCount = ProdEventCount,
+            DmaErrorCount = DmaErrorCount
         };
     }
 }

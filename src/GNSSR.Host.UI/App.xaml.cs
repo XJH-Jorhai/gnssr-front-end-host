@@ -28,8 +28,8 @@ public partial class App : Application
             var logger = new InMemoryLogService();
             var fileNamingPolicy = new FileNamingPolicy();
             var fx3UsbService = new WindowsFx3UsbService(logger);
-            var frontendSerialService = new WindowsFrontendSerialService(logger);
-            var captureSessionService = new MockCaptureSessionService(fileNamingPolicy, logger);
+            var frontendSerialService = new Fx3FrontendTunnelService(fx3UsbService, logger);
+            var captureSessionService = new Fx3CaptureSessionService(fileNamingPolicy, fx3UsbService, logger);
 
             var viewModel = new MainViewModel(
                 fx3UsbService,

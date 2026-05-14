@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Media;
 using GNSSR.Host.Core.Abstractions;
@@ -44,6 +45,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private string _pllLockText = "未知";
     private string _antennaStatusText = "未知";
     private string _activeProfileText = "未读取";
+    private string _currentFrequencyText = "--";
+    private string _tcxoFrequencyText = "--";
+    private string _centerFrequencyMHzInput = "1575.42";
     private string _frontendLastErrorText = "0x0000";
     private string _currentFileName = "尚未开始";
     private string _bytesReceivedText = "0 B";
@@ -54,6 +58,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private int _ringBufferUsagePercent;
     private Fx3DeviceInfo? _selectedFx3Device;
     private string? _selectedSerialPort;
+    private FrontendProfileOption? _selectedFrontendProfile;
     private CaptureSessionInfo? _currentSession;
 
     public MainViewModel(
@@ -71,16 +76,30 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         Fx3Devices = [];
         SerialPorts = [];
+        FrontendProfiles =
+        [
+            new FrontendProfileOption
+            {
+                ProfileId = 0x01,
+                ChannelMask = 0x03,
+                CenterFrequencyHz = 1_575_420_000,
+                DisplayName = "模式 1 - GPS L1 1575.42 MHz"
+            }
+        ];
         Logs = [];
+        _selectedFrontendProfile = FrontendProfiles.FirstOrDefault();
 
         RefreshDevicesCommand = new AsyncRelayCommand(RefreshDevicesAsync, () => !_isBusy && !_captureSessionService.IsCapturing);
         ConnectFx3Command = new AsyncRelayCommand(ConnectFx3Async, () => !_isBusy && !_fx3Connected && SelectedFx3Device is not null);
         DisconnectFx3Command = new AsyncRelayCommand(DisconnectFx3Async, () => !_isBusy && _fx3Connected && !_captureSessionService.IsCapturing);
         ConnectFrontendCommand = new AsyncRelayCommand(ConnectFrontendAsync, () => !_isBusy && !_frontendConnected && !string.IsNullOrWhiteSpace(SelectedSerialPort));
         DisconnectFrontendCommand = new AsyncRelayCommand(DisconnectFrontendAsync, () => !_isBusy && _frontendConnected && !_captureSessionService.IsCapturing);
+        ApplyFrontendProfileCommand = new AsyncRelayCommand(ApplyFrontendProfileAsync, CanConfigureFrontend);
+        ApplyCenterFrequencyCommand = new AsyncRelayCommand(ApplyCenterFrequencyAsync, CanConfigureFrontend);
         StartCaptureCommand = new AsyncRelayCommand(StartCaptureAsync, CanStartCapture);
         StopCaptureCommand = new AsyncRelayCommand(StopCaptureAsync, () => !_isBusy && _captureSessionService.IsCapturing);
         ResetStreamCommand = new AsyncRelayCommand(ResetStreamAsync, () => !_isBusy && _fx3Connected && !_captureSessionService.IsCapturing);
+        BrowseOutputDirectoryCommand = new RelayCommand(BrowseOutputDirectory, () => !_isBusy && !_captureSessionService.IsCapturing);
         UseRecommendedOutputDirectoryCommand = new RelayCommand(UseRecommendedOutputDirectory);
 
         _logger.EntryWritten += OnLogWritten;
@@ -90,6 +109,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     public ObservableCollection<Fx3DeviceInfo> Fx3Devices { get; }
 
     public ObservableCollection<string> SerialPorts { get; }
+
+    public ObservableCollection<FrontendProfileOption> FrontendProfiles { get; }
 
     public ObservableCollection<LogEntry> Logs { get; }
 
@@ -103,11 +124,17 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     public AsyncRelayCommand DisconnectFrontendCommand { get; }
 
+    public AsyncRelayCommand ApplyFrontendProfileCommand { get; }
+
+    public AsyncRelayCommand ApplyCenterFrequencyCommand { get; }
+
     public AsyncRelayCommand StartCaptureCommand { get; }
 
     public AsyncRelayCommand StopCaptureCommand { get; }
 
     public AsyncRelayCommand ResetStreamCommand { get; }
+
+    public RelayCommand BrowseOutputDirectoryCommand { get; }
 
     public RelayCommand UseRecommendedOutputDirectoryCommand { get; }
 
@@ -210,6 +237,23 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    public FrontendProfileOption? SelectedFrontendProfile
+    {
+        get => _selectedFrontendProfile;
+        set
+        {
+            if (SetProperty(ref _selectedFrontendProfile, value))
+            {
+                if (value is not null)
+                {
+                    CenterFrequencyMHzInput = FormatFrequencyMHz(value.CenterFrequencyHz);
+                }
+
+                RefreshCommandStates();
+            }
+        }
+    }
+
     public string Fx3ActiveText
     {
         get => _fx3ActiveText;
@@ -268,6 +312,30 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     {
         get => _activeProfileText;
         private set => SetProperty(ref _activeProfileText, value);
+    }
+
+    public string CurrentFrequencyText
+    {
+        get => _currentFrequencyText;
+        private set => SetProperty(ref _currentFrequencyText, value);
+    }
+
+    public string TcxoFrequencyText
+    {
+        get => _tcxoFrequencyText;
+        private set => SetProperty(ref _tcxoFrequencyText, value);
+    }
+
+    public string CenterFrequencyMHzInput
+    {
+        get => _centerFrequencyMHzInput;
+        set
+        {
+            if (SetProperty(ref _centerFrequencyMHzInput, value))
+            {
+                RefreshCommandStates();
+            }
+        }
     }
 
     public string FrontendLastErrorText
@@ -480,10 +548,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
             _frontendConnected = true;
             FrontendConnectionText = "已连接";
-            PllLockText = status.PllLocked ? "已锁定" : "未锁定";
-            AntennaStatusText = status.AntennaOk ? "正常" : "异常";
-            ActiveProfileText = $"配置 {status.ActiveProfile}";
-            FrontendLastErrorText = $"0x{status.LastError:X4}";
+            ApplyFrontendStatus(status);
             RefreshReadyState();
         });
     }
@@ -498,7 +563,63 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             PllLockText = "未知";
             AntennaStatusText = "未知";
             ActiveProfileText = "未读取";
+            CurrentFrequencyText = "--";
+            TcxoFrequencyText = "--";
             FrontendLastErrorText = "0x0000";
+            RefreshReadyState();
+        });
+    }
+
+    private async Task ApplyFrontendProfileAsync()
+    {
+        if (!CanConfigureFrontend() || SelectedFrontendProfile is null)
+        {
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            AppStateText = "配置前端";
+
+            var profile = SelectedFrontendProfile;
+            await _frontendSerialService.LoadDefaultProfileAsync(
+                profile.ChannelMask,
+                profile.ProfileId,
+                _applicationTokenSource.Token);
+
+            var status = await _frontendSerialService.GetStatusAsync(_applicationTokenSource.Token);
+            ApplyFrontendStatus(status);
+            _logger.Info($"前端模式已切换：{profile.DisplayName}。");
+            RefreshReadyState();
+        });
+    }
+
+    private async Task ApplyCenterFrequencyAsync()
+    {
+        if (!CanConfigureFrontend())
+        {
+            return;
+        }
+
+        if (!TryParseCenterFrequencyHz(CenterFrequencyMHzInput, out var centerFrequencyHz))
+        {
+            _logger.Warning("中心频率格式无效，请输入 MHz 数值，例如 1575.42。");
+            return;
+        }
+
+        await RunBusyAsync(async () =>
+        {
+            AppStateText = "配置前端";
+
+            const byte bothChannels = 0x03;
+            await _frontendSerialService.SetCenterFrequencyAsync(
+                bothChannels,
+                centerFrequencyHz,
+                _applicationTokenSource.Token);
+
+            var status = await _frontendSerialService.GetStatusAsync(_applicationTokenSource.Token);
+            ApplyFrontendStatus(status);
+            _logger.Info($"前端中心频率已写入：{FormatFrequencyHz(centerFrequencyHz)}。");
             RefreshReadyState();
         });
     }
@@ -571,6 +692,26 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         _logger.Info($"输出目录已设为：{OutputDirectory}");
     }
 
+    private void BrowseOutputDirectory()
+    {
+        var initialDirectory = Directory.Exists(OutputDirectory)
+            ? OutputDirectory
+            : BuildDefaultOutputDirectory();
+
+        var dialog = new OpenFolderDialog
+        {
+            Title = "选择采集输出目录",
+            InitialDirectory = initialDirectory,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.FolderName))
+        {
+            OutputDirectory = dialog.FolderName;
+            _logger.Info($"输出目录已选择：{OutputDirectory}");
+        }
+    }
+
     private async Task RunBusyAsync(Func<Task> action)
     {
         try
@@ -608,6 +749,28 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                !string.IsNullOrWhiteSpace(OutputDirectory);
     }
 
+    private bool CanConfigureFrontend()
+    {
+        return !_isBusy &&
+               _frontendConnected &&
+               !_captureSessionService.IsCapturing;
+    }
+
+    private void ApplyFrontendStatus(FrontendStatus status)
+    {
+        PllLockText = status.PllLocked ? "已锁定" : "未锁定";
+        AntennaStatusText = status.AntennaOk ? "正常" : "异常";
+        ActiveProfileText = status.ActiveProfile == 0x80 ? "自定义频点" : $"配置 {status.ActiveProfile}";
+        CurrentFrequencyText = FormatFrequencyHz(status.CurrentFrequencyHz);
+        TcxoFrequencyText = FormatFrequencyHz(status.TcxoFrequencyHz);
+        FrontendLastErrorText = $"0x{status.LastError:X4}";
+
+        if (status.CurrentFrequencyHz != 0U)
+        {
+            CenterFrequencyMHzInput = FormatFrequencyMHz(status.CurrentFrequencyHz);
+        }
+    }
+
     private void OnMetricsUpdated(object? sender, CaptureMetrics metrics)
     {
         _ = Application.Current.Dispatcher.InvokeAsync(() =>
@@ -617,7 +780,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             WriteRateText = $"{FormatBytes((long)metrics.WriteRateBytesPerSecond)}/s";
             RingBufferUsagePercent = metrics.RingBufferUsagePercent;
             RingBufferPeakText = $"{metrics.RingBufferPeakPercent}%";
-            ProdEventCountText = (metrics.BytesReceived / 1_048_576L).ToString("N0", CultureInfo.InvariantCulture);
+            ProdEventCountText = metrics.ProdEventCount.ToString("N0", CultureInfo.InvariantCulture);
+            DmaErrorCountText = metrics.DmaErrorCount.ToString("N0", CultureInfo.InvariantCulture);
         });
     }
 
@@ -640,9 +804,12 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         DisconnectFx3Command.RaiseCanExecuteChanged();
         ConnectFrontendCommand.RaiseCanExecuteChanged();
         DisconnectFrontendCommand.RaiseCanExecuteChanged();
+        ApplyFrontendProfileCommand.RaiseCanExecuteChanged();
+        ApplyCenterFrequencyCommand.RaiseCanExecuteChanged();
         StartCaptureCommand.RaiseCanExecuteChanged();
         StopCaptureCommand.RaiseCanExecuteChanged();
         ResetStreamCommand.RaiseCanExecuteChanged();
+        BrowseOutputDirectoryCommand.RaiseCanExecuteChanged();
         UseRecommendedOutputDirectoryCommand.RaiseCanExecuteChanged();
     }
 
@@ -681,7 +848,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     private static string FormatBytes(long bytes)
     {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
         double scaledSize = bytes;
         var unitIndex = 0;
 
@@ -692,6 +859,50 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         return $"{scaledSize:0.##} {units[unitIndex]}";
+    }
+
+    private static string FormatFrequencyHz(uint frequencyHz)
+    {
+        if (frequencyHz == 0U)
+        {
+            return "--";
+        }
+
+        if (frequencyHz >= 1_000_000U)
+        {
+            return $"{frequencyHz / 1_000_000.0:0.######} MHz";
+        }
+
+        if (frequencyHz >= 1_000U)
+        {
+            return $"{frequencyHz / 1_000.0:0.###} kHz";
+        }
+
+        return $"{frequencyHz.ToString("N0", CultureInfo.InvariantCulture)} Hz";
+    }
+
+    private static string FormatFrequencyMHz(uint frequencyHz)
+    {
+        return (frequencyHz / 1_000_000.0).ToString("0.######", CultureInfo.InvariantCulture);
+    }
+
+    private static bool TryParseCenterFrequencyHz(string text, out uint frequencyHz)
+    {
+        frequencyHz = 0U;
+
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var mhz) &&
+            !double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out mhz))
+        {
+            return false;
+        }
+
+        if (mhz < 1554.0 || mhz > 1614.0)
+        {
+            return false;
+        }
+
+        frequencyHz = (uint)Math.Round(mhz * 1_000_000.0, MidpointRounding.AwayFromZero);
+        return true;
     }
 
     private static SolidColorBrush CreateBrush(string hex)

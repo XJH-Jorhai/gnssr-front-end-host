@@ -147,8 +147,20 @@ public sealed class MockCaptureSessionService : ICaptureSessionService
             pid = _currentDevice?.Pid ?? "unknown",
             usb_speed = _currentFx3Status?.UsbSpeed ?? "unknown",
             sample_clock_hz = 26_000_000,
+            if_center_hz = 4_000_000,
             data_rate_bytes_per_sec = 26_000_000,
-            mapping = "low_nibble=MAX2769_A_D3_D0, high_nibble=MAX2769_B_D3_D0",
+            mapping = "one byte per GPIF clock: low_nibble=direct MAX2769, high_nibble=reflected MAX2769",
+            bit_layout = new[]
+            {
+                "bit0=direct.I0",
+                "bit1=direct.I1",
+                "bit2=direct.Q0",
+                "bit3=direct.Q1",
+                "bit4=reflected.I0",
+                "bit5=reflected.I1",
+                "bit6=reflected.Q0",
+                "bit7=reflected.Q1"
+            },
             start_time_host = session.StartTimeHost,
             stop_time_host = session.StopTimeHost,
             file_name_prefix = session.FileNamePrefix,

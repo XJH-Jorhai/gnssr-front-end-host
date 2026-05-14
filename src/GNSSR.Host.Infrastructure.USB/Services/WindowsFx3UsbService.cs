@@ -1,22 +1,39 @@
-using System.Text.RegularExpressions;
+using System.IO;
 using System.Runtime.Versioning;
+using CyUSB;
 using GNSSR.Host.Core.Abstractions;
 using GNSSR.Host.Core.Models;
-using Microsoft.Win32;
 
 namespace GNSSR.Host.Infrastructure.USB.Services;
 
 [SupportedOSPlatform("windows")]
-public sealed class WindowsFx3UsbService : IFx3UsbService
+public sealed class WindowsFx3UsbService : IFx3UsbService, IDisposable
 {
-    private const string UsbRegistryPath = @"SYSTEM\CurrentControlSet\Enum\USB";
-    private const string CypressVendorId = "04B4";
-    private const string DefaultFx3Pid = "00F1";
-    private static readonly Regex VidPidRegex = new(
-        @"VID_(?<vid>[0-9A-F]{4})&PID_(?<pid>[0-9A-F]{4})",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private const int CypressVendorId = 0x04B4;
+    private const int GnssrProductId = 0x00F1;
+    private const byte BulkInEndpointAddress = 0x81;
+    private const byte UartOutEndpointAddress = 0x02;
+    private const byte UartInEndpointAddress = 0x82;
+    private const byte BenchmarkInEndpointAddress = 0x83;
+    private const byte StartStreamRequest = 0xB0;
+    private const byte StopStreamRequest = 0xB1;
+    private const byte ResetStreamRequest = 0xB2;
+    private const byte GetStatusRequest = 0xB3;
+    private const int StatusPayloadLength = 12;
+    private const int BulkReadTimeoutMs = 1000;
+    private const int UartTransferTimeoutMs = 50;
+    private const int ControlTimeoutMs = 200;
 
     private readonly IAppLogger _logger;
+    private readonly object _controlLock = new();
+    private readonly object _bulkLock = new();
+    private readonly object _uartLock = new();
+
+    private USBDeviceList? _deviceList;
+    private CyUSBDevice? _device;
+    private CyBulkEndPoint? _bulkInEndPoint;
+    private CyBulkEndPoint? _uartOutEndPoint;
+    private CyBulkEndPoint? _uartInEndPoint;
 
     public WindowsFx3UsbService(IAppLogger logger)
     {
@@ -31,13 +48,14 @@ public sealed class WindowsFx3UsbService : IFx3UsbService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var devices = EnumerateFx3Devices()
+        using var deviceList = new USBDeviceList(CyConst.DEVICES_CYUSB);
+        var devices = EnumerateGnssrDevices(deviceList)
             .OrderBy(device => device.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
 
         if (devices.Length == 0)
         {
-            _logger.Warning("未发现 CYUSB3014 FX3 设备。");
+            _logger.Warning("No CYUSB3014 GNSSR device with VID_04B4 PID_00F1 was found.");
         }
 
         return Task.FromResult<IReadOnlyList<Fx3DeviceInfo>>(devices);
@@ -47,10 +65,45 @@ public sealed class WindowsFx3UsbService : IFx3UsbService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        CurrentDevice = device;
-        IsConnected = true;
-        _logger.Info($"FX3 设备已选择：{device.DisplayName}。");
+        CloseDevice();
 
+        _deviceList = new USBDeviceList(CyConst.DEVICES_CYUSB);
+        var selectedDevice = FindDevice(_deviceList, device.DeviceId);
+        if (selectedDevice is null)
+        {
+            CloseDevice();
+            throw new InvalidOperationException("The selected FX3 device is no longer present.");
+        }
+
+        selectedDevice.ControlEndPt.TimeOut = ControlTimeoutMs;
+
+        var bulkIn = selectedDevice.EndPointOf(BulkInEndpointAddress) as CyBulkEndPoint;
+        if (bulkIn is null)
+        {
+            CloseDevice();
+            throw new InvalidOperationException("FX3 Bulk IN endpoint 0x81 was not found.");
+        }
+
+        var uartOut = selectedDevice.EndPointOf(UartOutEndpointAddress) as CyBulkEndPoint;
+        var uartIn = selectedDevice.EndPointOf(UartInEndpointAddress) as CyBulkEndPoint;
+        if (uartOut is null || uartIn is null)
+        {
+            CloseDevice();
+            throw new InvalidOperationException("FX3 UART tunnel endpoints 0x02/0x82 were not found. Download the Stream+UART firmware first.");
+        }
+
+        bulkIn.TimeOut = BulkReadTimeoutMs;
+        uartOut.TimeOut = UartTransferTimeoutMs;
+        uartIn.TimeOut = UartTransferTimeoutMs;
+
+        _device = selectedDevice;
+        _bulkInEndPoint = bulkIn;
+        _uartOutEndPoint = uartOut;
+        _uartInEndPoint = uartIn;
+        CurrentDevice = BuildDeviceInfo(selectedDevice, device.DeviceId);
+        IsConnected = true;
+
+        _logger.Info($"FX3 device connected: {CurrentDevice.DisplayName}.");
         return Task.CompletedTask;
     }
 
@@ -58,14 +111,14 @@ public sealed class WindowsFx3UsbService : IFx3UsbService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (CurrentDevice is not null)
+        AbortAllPipes();
+
+        if (IsConnected && CurrentDevice is not null)
         {
-            _logger.Info($"FX3 设备已断开：{CurrentDevice.DisplayName}。");
+            _logger.Info($"FX3 device disconnected: {CurrentDevice.DisplayName}.");
         }
 
-        CurrentDevice = null;
-        IsConnected = false;
-
+        CloseDevice();
         return Task.CompletedTask;
     }
 
@@ -73,90 +126,329 @@ public sealed class WindowsFx3UsbService : IFx3UsbService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        return Task.FromResult(new Fx3Status
+        var buffer = new byte[StatusPayloadLength];
+        var transferred = VendorControlTransfer(GetStatusRequest, isDeviceToHost: true, buffer, StatusPayloadLength);
+        if (transferred != StatusPayloadLength)
         {
-            Active = false,
-            UsbSpeed = IsConnected ? "待读取" : "Unknown",
-            ProdEventCount = 0,
-            DmaErrorCount = 0
-        });
+            throw new IOException($"GET_STATUS returned {transferred} bytes instead of {StatusPayloadLength}.");
+        }
+
+        return Task.FromResult(ParseStatus(buffer));
+    }
+
+    public Task StartStreamAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        VendorControlTransfer(StartStreamRequest, isDeviceToHost: false, Array.Empty<byte>(), 0);
+        _logger.Info("FX3 START_STREAM accepted.");
+        return Task.CompletedTask;
+    }
+
+    public Task StopStreamAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        VendorControlTransfer(StopStreamRequest, isDeviceToHost: false, Array.Empty<byte>(), 0);
+        AbortDataPipe();
+        _logger.Info("FX3 STOP_STREAM accepted.");
+        return Task.CompletedTask;
     }
 
     public Task ResetStreamAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        _logger.Info("FX3 数据流重置请求已记录，控制传输将在硬件协议接入后启用。");
+        AbortDataPipe();
+        VendorControlTransfer(ResetStreamRequest, isDeviceToHost: false, Array.Empty<byte>(), 0);
+        AbortDataPipe();
+        _logger.Info("FX3 RESET_STREAM accepted.");
         return Task.CompletedTask;
     }
 
-    private static IEnumerable<Fx3DeviceInfo> EnumerateFx3Devices()
+    public Task<int> ReadBulkInAsync(byte[] buffer, CancellationToken cancellationToken)
     {
-        using var usbKey = Registry.LocalMachine.OpenSubKey(UsbRegistryPath);
-        if (usbKey is null)
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (buffer.Length == 0)
         {
-            yield break;
+            return Task.FromResult(0);
         }
 
-        foreach (var deviceKeyName in usbKey.GetSubKeyNames())
+        var endPoint = _bulkInEndPoint ?? throw new InvalidOperationException("FX3 is not connected.");
+        var transferBuffer = buffer;
+        var transferLength = buffer.Length;
+        bool success;
+
+        lock (_bulkLock)
         {
-            var vidPid = VidPidRegex.Match(deviceKeyName);
-            if (!vidPid.Success)
+            success = endPoint.XferData(ref transferBuffer, ref transferLength);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!success)
+        {
+            throw new IOException(
+                $"Bulk IN 0x81 transfer failed. LastError={endPoint.LastError}, NtStatus={endPoint.NtStatus}, UsbdStatus={endPoint.UsbdStatus}.");
+        }
+
+        if (!ReferenceEquals(transferBuffer, buffer) && transferLength > 0)
+        {
+            Buffer.BlockCopy(transferBuffer, 0, buffer, 0, transferLength);
+        }
+
+        return Task.FromResult(transferLength);
+    }
+
+    public Task WriteFrontendUartAsync(byte[] buffer, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (buffer.Length == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var endPoint = _uartOutEndPoint ?? throw new InvalidOperationException("FX3 UART tunnel is not connected.");
+        var transferBuffer = buffer;
+        var transferLength = buffer.Length;
+        bool success;
+
+        lock (_uartLock)
+        {
+            success = endPoint.XferData(ref transferBuffer, ref transferLength);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!success || transferLength != buffer.Length)
+        {
+            throw new IOException(
+                $"UART tunnel OUT 0x02 transfer failed. Requested={buffer.Length}, transferred={transferLength}, LastError={endPoint.LastError}, NtStatus={endPoint.NtStatus}, UsbdStatus={endPoint.UsbdStatus}.");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<int> ReadFrontendUartAsync(byte[] buffer, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (buffer.Length == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        var endPoint = _uartInEndPoint ?? throw new InvalidOperationException("FX3 UART tunnel is not connected.");
+        var transferBuffer = buffer;
+        var transferLength = buffer.Length;
+        bool success;
+
+        lock (_uartLock)
+        {
+            success = endPoint.XferData(ref transferBuffer, ref transferLength);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!success)
+        {
+            return Task.FromResult(0);
+        }
+
+        if (!ReferenceEquals(transferBuffer, buffer) && transferLength > 0)
+        {
+            Buffer.BlockCopy(transferBuffer, 0, buffer, 0, transferLength);
+        }
+
+        return Task.FromResult(transferLength);
+    }
+
+    public void Dispose()
+    {
+        CloseDevice();
+    }
+
+    private int VendorControlTransfer(byte request, bool isDeviceToHost, byte[] buffer, int length)
+    {
+        var device = _device ?? throw new InvalidOperationException("FX3 is not connected.");
+        var controlEndPoint = device.ControlEndPt;
+        var transferBuffer = buffer;
+        var transferLength = length;
+        bool success;
+
+        lock (_controlLock)
+        {
+            controlEndPoint.Target = CyConst.TGT_DEVICE;
+            controlEndPoint.ReqType = CyConst.REQ_VENDOR;
+            controlEndPoint.Direction = isDeviceToHost ? CyConst.DIR_FROM_DEVICE : CyConst.DIR_TO_DEVICE;
+            controlEndPoint.ReqCode = request;
+            controlEndPoint.Value = 0;
+            controlEndPoint.Index = 0;
+            controlEndPoint.TimeOut = ControlTimeoutMs;
+
+            success = controlEndPoint.XferData(ref transferBuffer, ref transferLength);
+        }
+
+        if (!success)
+        {
+            throw new IOException(
+                $"Vendor request 0x{request:X2} failed. LastError={controlEndPoint.LastError}, NtStatus={controlEndPoint.NtStatus}, UsbdStatus={controlEndPoint.UsbdStatus}.");
+        }
+
+        if (isDeviceToHost && !ReferenceEquals(transferBuffer, buffer) && transferLength > 0)
+        {
+            Buffer.BlockCopy(transferBuffer, 0, buffer, 0, transferLength);
+        }
+
+        return transferLength;
+    }
+
+    private void CloseDevice()
+    {
+        AbortAllPipes();
+        IsConnected = false;
+        CurrentDevice = null;
+        _bulkInEndPoint = null;
+        _uartOutEndPoint = null;
+        _uartInEndPoint = null;
+        _device = null;
+        _deviceList?.Dispose();
+        _deviceList = null;
+    }
+
+    private void AbortDataPipe()
+    {
+        try
+        {
+            _bulkInEndPoint?.Abort();
+            _bulkInEndPoint?.Reset();
+        }
+        catch
+        {
+        }
+    }
+
+    private void AbortAllPipes()
+    {
+        AbortDataPipe();
+
+        try
+        {
+            _uartOutEndPoint?.Abort();
+            _uartOutEndPoint?.Reset();
+            _uartInEndPoint?.Abort();
+            _uartInEndPoint?.Reset();
+        }
+        catch
+        {
+        }
+    }
+
+    private static IEnumerable<Fx3DeviceInfo> EnumerateGnssrDevices(USBDeviceList deviceList)
+    {
+        for (var index = 0; index < deviceList.Count; index++)
+        {
+            if (deviceList[index] is CyUSBDevice device &&
+                device.VendorID == CypressVendorId &&
+                device.ProductID == GnssrProductId)
             {
-                continue;
-            }
-
-            var vid = vidPid.Groups["vid"].Value.ToUpperInvariant();
-            var pid = vidPid.Groups["pid"].Value.ToUpperInvariant();
-            if (!string.Equals(vid, CypressVendorId, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(pid, DefaultFx3Pid, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            using var deviceKey = usbKey.OpenSubKey(deviceKeyName);
-            if (deviceKey is null)
-            {
-                continue;
-            }
-
-            foreach (var instanceKeyName in deviceKey.GetSubKeyNames())
-            {
-                using var instanceKey = deviceKey.OpenSubKey(instanceKeyName);
-                if (instanceKey is null)
-                {
-                    continue;
-                }
-
-                var displayName = CleanRegistryText(
-                    instanceKey.GetValue("FriendlyName") as string ??
-                    instanceKey.GetValue("DeviceDesc") as string) ?? "CYUSB3014 FX3 Front-End";
-
-                yield return new Fx3DeviceInfo
-                {
-                    DeviceId = $@"USB\{deviceKeyName}\{instanceKeyName}",
-                    DisplayName = displayName.Contains("FX3", StringComparison.OrdinalIgnoreCase)
-                        ? displayName
-                        : $"{displayName} FX3",
-                    Vid = $"0x{vid}",
-                    Pid = $"0x{pid}",
-                    InterfaceDescription = CleanRegistryText(instanceKey.GetValue("DeviceDesc") as string) ??
-                                           "Cypress FX3 USB interface"
-                };
+                yield return BuildDeviceInfo(device, BuildDeviceId(device, index));
             }
         }
     }
 
-    private static string? CleanRegistryText(string? value)
+    private static CyUSBDevice? FindDevice(USBDeviceList deviceList, string deviceId)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        CyUSBDevice? fallback = null;
+
+        for (var index = 0; index < deviceList.Count; index++)
         {
-            return null;
+            if (deviceList[index] is not CyUSBDevice device ||
+                device.VendorID != CypressVendorId ||
+                device.ProductID != GnssrProductId)
+            {
+                continue;
+            }
+
+            fallback ??= device;
+            if (string.Equals(BuildDeviceId(device, index), deviceId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(device.Path, deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return device;
+            }
         }
 
-        var semicolonIndex = value.LastIndexOf(';');
-        return semicolonIndex >= 0 && semicolonIndex < value.Length - 1
-            ? value[(semicolonIndex + 1)..].Trim()
-            : value.Trim();
+        return fallback;
+    }
+
+    private static Fx3DeviceInfo BuildDeviceInfo(CyUSBDevice device, string deviceId)
+    {
+        var name = FirstNonEmpty(device.FriendlyName, device.Product, device.Name, "CYUSB3014 FX3 GNSSR Stream");
+        var interfaceDescription =
+            $"CyUSB vendor interface, data IN 0x{BulkInEndpointAddress:X2}, UART OUT 0x{UartOutEndpointAddress:X2}/IN 0x{UartInEndpointAddress:X2}, benchmark IN 0x{BenchmarkInEndpointAddress:X2}";
+
+        return new Fx3DeviceInfo
+        {
+            DeviceId = deviceId,
+            DisplayName = name,
+            Vid = $"0x{device.VendorID:X4}",
+            Pid = $"0x{device.ProductID:X4}",
+            InterfaceDescription = interfaceDescription
+        };
+    }
+
+    private static string BuildDeviceId(CyUSBDevice device, int index)
+    {
+        return string.IsNullOrWhiteSpace(device.Path)
+            ? $"VID_{device.VendorID:X4}&PID_{device.ProductID:X4}#{index}"
+            : device.Path;
+    }
+
+    private static Fx3Status ParseStatus(ReadOnlySpan<byte> status)
+    {
+        return new Fx3Status
+        {
+            Active = status[0] != 0,
+            UsbSpeed = DecodeUsbSpeed(status[1]),
+            ProdEventCount = ReadUInt32LittleEndian(status[4..8]),
+            DmaErrorCount = ReadUInt32LittleEndian(status[8..12])
+        };
+    }
+
+    private static uint ReadUInt32LittleEndian(ReadOnlySpan<byte> value)
+    {
+        return (uint)(value[0] |
+                      (value[1] << 8) |
+                      (value[2] << 16) |
+                      (value[3] << 24));
+    }
+
+    private static string DecodeUsbSpeed(byte speedCode)
+    {
+        return speedCode switch
+        {
+            1 => "FullSpeed",
+            2 => "HighSpeed",
+            3 => "SuperSpeed",
+            _ => "Unknown"
+        };
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return "CYUSB3014 FX3 GNSSR Stream";
     }
 }

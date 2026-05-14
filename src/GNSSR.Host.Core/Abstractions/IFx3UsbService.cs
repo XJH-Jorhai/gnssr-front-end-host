@@ -16,5 +16,15 @@ public interface IFx3UsbService
 
     Task<Fx3Status> GetStatusAsync(CancellationToken cancellationToken);
 
+    Task StartStreamAsync(CancellationToken cancellationToken);
+
+    Task StopStreamAsync(CancellationToken cancellationToken);
+
     Task ResetStreamAsync(CancellationToken cancellationToken);
+
+    Task<int> ReadBulkInAsync(byte[] buffer, CancellationToken cancellationToken);
+
+    Task WriteFrontendUartAsync(byte[] buffer, CancellationToken cancellationToken);
+
+    Task<int> ReadFrontendUartAsync(byte[] buffer, CancellationToken cancellationToken);
 }

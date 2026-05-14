@@ -4,6 +4,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GNSSR.Host.Core\GNSSR.Host.Core.csproj" />
   </ItemGroup>
 </Project>

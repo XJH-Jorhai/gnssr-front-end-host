@@ -1,0 +1,453 @@
+document_metadata:
+  file_name: THESIS_SOFTWARE_DESIGN_CONTEXT.yaml
+  version: 1.1.0
+  language: zh-CN
+  created_at: 2026-04-23
+  intended_consumer: 论文写作 Agent / 其他 Codex
+  objective: >
+    为毕业论文中的“上位机软件设计”“软件总体设计”“软件实现”等小节提供可直接写作的结构化设计上下文。
+    其他 agent 在只阅读本文件的前提下，应能够理解本软件的设计目标、总体架构、界面组织、关键流程、
+    工程价值与后续扩展方式，并据此写出一段完整、可信且具有工程逻辑的软件设计介绍。
+  preferred_framing: >
+    本文件优先强调“软件设计方案已经成形、整体控制流程已经清晰、核心模块边界已经定义”，
+    使写作代理能够围绕可行的软件框架与阶段性工程成果展开写作，而不是把篇幅过多放在尚待联调的底层细节上。
+
+thesis_writing_target:
+  recommended_section_titles:
+    - 上位机软件总体设计
+    - 上位机软件架构设计
+    - GNSS-R 上位机软件设计与实现
+    - 采集控制软件设计
+  recommended_length:
+    short_subsection: 800-1200字
+    medium_subsection: 1200-2000字
+    long_subsection: 2000-3000字
+  writing_style:
+    tone: 正式、客观、偏工程论文
+    perspective: 第三人称
+    emphasis:
+      - 说明上位机软件在整个 GNSS-R 实验系统中的作用
+      - 说明技术选型与分层架构的合理性
+      - 说明界面组织如何服务设备连接、采集控制和实验记录
+      - 说明软件如何为后续真实协议联调预留稳定接口
+    recommended_positioning:
+      - 可表述为“面向 GNSS-R 实验任务的上位机控制与采集管理软件”
+      - 可表述为“已形成完整设计框架和可运行桌面控制台的阶段性成果”
+      - 可表述为“具备设备发现、状态展示、采集组织和日志记录能力的软件基础平台”
+    avoid_overemphasis:
+      - 不要把篇幅主要放在“哪些硬件底层细节尚待联调”的枚举上
+      - 不要把该软件描述成仅有静态界面的展示原型
+      - 不要忽视软件在系统工程组织、实验流程规范化方面的价值
+    safe_extension_phrasing:
+      - 后续可在既有接口基础上接入真实 USB 数据接收链路
+      - 串口协议处理能力可在现有通信抽象上继续扩展
+      - 采集服务采用可替换实现，便于由实验级实现平滑演进到正式实现
+
+project_background:
+  project_name: 基于 GNSS-R 和无人机的土壤遥测系统设计
+  software_name:
+    english: GNSSR Front-End Host
+    chinese: GNSSR 采集控制台
+  research_context: >
+    在 GNSS-R 遥测系统中，地面端不仅需要完成硬件接入确认，还需要承担实验准备、采集组织、结果保存和过程记录等任务。
+    因此，上位机软件并不是附属界面，而是连接实验设备、采集任务与数据管理流程的统一控制入口。
+  software_role: >
+    本软件是系统中的 Windows 上位机控制端，用于在地面端完成设备发现、连接状态确认、采集控制、
+    采集文件组织、运行日志记录以及实验辅助观测等任务。
+  application_scenario:
+    - 检测 CYUSB3014 FX3 是否被系统识别
+    - 检测前端控制串口是否可用
+    - 展示 FX3 与前端链路的关键状态
+    - 启动或停止数据采集会话
+    - 将采集结果按统一规则保存为原始二进制文件和元数据文件
+    - 为实验报告、系统联调和运行追踪提供可视化界面依据
+  engineering_value: >
+    从系统工程角度看，该软件的价值并不局限于“打开和关闭采集”，
+    更在于建立了一个可复用、可扩展、可记录的实验控制框架，
+    使硬件接入、采集操作和数据管理过程具备统一的软件承载形态。
+
+software_overview:
+  one_sentence_summary: >
+    该上位机软件采用 .NET 8、WPF 和 MVVM 技术路线，构建了一个面向 GNSS-R 实验流程的桌面控制台，
+    用于统一组织设备发现、状态可视化、采集会话管理与日志记录。
+  core_capabilities:
+    - 桌面可视化控制界面
+    - FX3 与串口设备发现
+    - 连接状态与关键状态灯显示
+    - 采集文件名前缀输入与自动时间戳命名
+    - 采集信息与日志展示
+    - 面向后续真实协议接入的服务抽象
+  engineering_positioning: >
+    当前软件已经形成清晰的页面结构、分层架构和控制流程，
+    可作为论文中“软件总体设计与阶段性实现”的核心内容进行介绍。
+
+design_objectives:
+  primary_goals:
+    - 建立统一的地面端控制入口
+    - 降低界面逻辑与硬件访问逻辑之间的耦合
+    - 使设备状态、采集状态和运行记录具备清晰的可视化表达
+    - 形成可扩展的软件骨架，为后续真实协议接入提供稳定承载面
+  design_constraints:
+    - 运行环境限定为 Windows 桌面端
+    - 软件需要适配实验室/联调阶段常见的设备接入与状态确认场景
+    - 界面应优先服务控制与观测，而非复杂图形分析
+    - 命名、日志和会话组织需符合实验数据管理习惯
+  design_principles:
+    - 先保证控制流程清晰，再考虑功能堆叠
+    - 先保证状态可读，再考虑视觉修饰
+    - 先保证架构可替换，再考虑底层协议细节
+    - 先保证论文表述可信，再追求过度包装
+
+technical_stack:
+  operating_system: Windows 10 or Windows 11
+  architecture: x64
+  language: C#
+  runtime: .NET 8
+  ui_framework: WPF
+  ui_theme: WPF UI
+  ui_pattern: MVVM
+  serialization: System.Text.Json
+  logging_strategy: 内存日志服务，可扩展到文件日志
+  selection_rationale:
+    - Windows 桌面环境适合仪器控制和数据采集软件的部署与调试
+    - C# 在异步任务、文件 I/O、异常处理和设备接口封装方面成熟稳定
+    - WPF 适合构建状态面板、控制面板和日志视图等典型上位机界面
+    - MVVM 有利于将界面呈现与设备交互逻辑解耦
+    - WPF UI 有助于形成简洁、现代且适合论文截图展示的桌面视觉风格
+
+architecture_design:
+  architecture_style: 分层架构 + MVVM + 面向会话的设备控制
+  overall_explanation: >
+    软件整体采用“核心层 + 基础设施层 + 界面层”的分层组织方式。
+    其中核心层负责定义领域模型、抽象接口和稳定规则；
+    基础设施层负责设备访问、存储与日志等可替换实现；
+    界面层负责状态呈现、命令绑定和工作流编排。
+    这种结构使软件既能够快速形成可运行控制台，又不会把页面代码与底层硬件细节绑死在一起。
+  project_structure:
+    - name: GNSSR.Host.Core
+      responsibility: >
+        定义领域模型、接口抽象、会话信息结构和文件命名规则，
+        是整个系统中最稳定的一层。
+      representative_elements:
+        - IFx3UsbService
+        - IFrontendSerialService
+        - ICaptureSessionService
+        - FileNamingPolicy
+        - CaptureSessionInfo
+    - name: GNSSR.Host.Infrastructure.USB
+      responsibility: >
+        负责 FX3 设备发现，以及未来的 USB 控制传输与数据接收扩展。
+      representative_elements:
+        - WindowsFx3UsbService
+    - name: GNSSR.Host.Infrastructure.Serial
+      responsibility: >
+        负责前端串口发现，以及未来的串口协议交互扩展。
+      representative_elements:
+        - WindowsFrontendSerialService
+    - name: GNSSR.Host.Infrastructure.Storage
+      responsibility: >
+        负责采集会话组织、文件输出与元数据写入流程。
+      representative_elements:
+        - ICaptureSessionService 的当前实现
+        - 采集结果写出逻辑
+    - name: GNSSR.Host.Infrastructure.Logging
+      responsibility: >
+        提供运行日志写入和界面日志列表所需的基础服务。
+    - name: GNSSR.Host.UI
+      responsibility: >
+        提供 WPF 界面、ViewModel、命令绑定和交互逻辑，
+        负责将设备状态和采集状态转化为用户可理解的桌面控制视图。
+  interface_strategy:
+    summary: >
+      软件采用“上层依赖抽象、下层提供实现”的接口策略，
+      从而保证真实 USB、串口和采集实现可以在不重写界面结构的前提下平滑接入。
+    reserved_extension_points:
+      - IFx3UsbService 可继续扩展为真实控制命令与数据流读取服务
+      - IFrontendSerialService 可继续扩展为真实串口协议收发服务
+      - ICaptureSessionService 可继续扩展为面向真实数据源的采集会话服务
+      - FileNamingPolicy 使文件组织规则独立于界面实现，可长期复用
+
+ui_design:
+  product_name: GNSSR 采集控制台
+  design_keywords:
+    - 简约
+    - 现代
+    - 卡片化
+    - 状态可视
+    - 分页导航
+    - 面向桌面控制台
+  interface_style: >
+    界面采用简洁的浅色桌面风格，避免复杂渐变和装饰性信息堆叠，
+    重点突出状态、指标与操作入口，使页面更接近可发布产品的控制台界面。
+  navigation_structure:
+    type: 三分页桌面导航
+    pages:
+      - name: 总览
+        purpose: 设备接入、连接控制与关键状态确认
+      - name: 采集
+        purpose: 采集任务配置、文件命名与会话控制
+      - name: 日志
+        purpose: 运行记录、联调辅助与实验过程追踪
+  top_summary_bar:
+    purpose: 在页面顶部提供全局状态摘要，帮助用户快速判断系统整体工作阶段
+    items:
+      - label: 应用状态
+        meaning: 反映软件整体处于等待连接、可采集或采集中等阶段
+      - label: FX3
+        meaning: 反映 FX3 链路是否已建立
+      - label: 前端
+        meaning: 反映前端串口链路是否已建立
+      - label: 采集
+        meaning: 反映当前采集会话是否启动
+  overview_page:
+    role: 主工作页
+    design_intent: >
+      用户在打开软件后的首要需求通常不是立即采集，而是先确认硬件链路是否存在、是否可连接、状态是否正常。
+      因此总览页承担“实验准备页”的职责，将连接操作与状态观察集中在同一页面。
+    layout_logic:
+      - 左右两组连接区分别对应 FX3 与前端串口，便于并行观察
+      - 状态区与连接区分离，使“执行操作”和“观察结果”形成清晰认知路径
+      - FX3 与前端状态卡采用对称设计，便于用户将其视为两条独立但协同的链路
+    visible_information:
+      - 设备选择框与刷新/连接/断开按钮
+      - 串口选择框与刷新/连接/断开按钮
+      - 连接状态灯与状态文本
+      - 当前设备或当前串口
+      - USB 速度
+      - PLL Lock
+      - 天线状态
+      - 工作配置
+      - DMA 错误计数
+  capture_page:
+    role: 采集任务组织页
+    design_intent: >
+      采集页的重点不是展示复杂图表，而是围绕“文件如何命名、保存到哪里、当前写入情况如何”组织操作，
+      使实验数据从开始采集到形成结果文件的全过程具备清晰的软件承载。
+    layout_logic:
+      - 左侧放置文件名前缀、输出目录和控制按钮
+      - 右侧放置会话状态、当前文件、写入统计和缓存指标
+      - 预计文件名预览用于强化“用户输入前缀 + 系统补充时间戳”的命名逻辑
+    visible_information:
+      - 文件名前缀输入
+      - 预计文件名预览
+      - 输出目录设置
+      - 推荐目录按钮
+      - 开始采集/停止采集/重置流按钮
+      - 当前文件
+      - 已接收字节
+      - 已写入字节
+      - 写入速率
+      - 开始时间
+      - Buffer 峰值
+      - Ring Buffer 占用
+  log_page:
+    role: 运行记录页
+    design_intent: >
+      仪器控制类软件需要具备基本的运行过程留痕能力，
+      因此日志页采用固定行高、表格化布局来展示时间、级别和消息三类信息，
+      以便用户进行快速扫读、联调定位和实验过程回溯。
+    layout_logic:
+      - 表头固定为时间、级别、消息
+      - 单行显示消息内容，避免因长文本破坏表格节奏
+      - 视觉风格偏控制台工具，而非自由文本阅读器
+
+state_design:
+  state_semantics:
+    app_state: 软件整体工作阶段的摘要表达
+    fx3_state: FX3 链路状态摘要
+    frontend_state: 前端串口链路状态摘要
+    capture_state: 采集会话状态摘要
+  signal_light_strategy:
+    purpose: 用颜色和文本双通道表达关键状态，降低仅靠文字判断的负担
+    mapping:
+      gray: 未连接或未启动
+      green: 正常连接或运行中
+      orange: 过渡中、等待中或需要关注
+      red: 错误或异常
+  design_reason: >
+    这些状态词并不是随意命名，而是对应用户在实验流程中的决策点。
+    也就是说，状态文本和状态灯不仅用于展示信息，也承担“下一步该做什么”的提示作用。
+
+key_workflows:
+  startup_flow:
+    - 启动应用程序
+    - 初始化日志服务和主 ViewModel
+    - 自动刷新本机设备列表
+    - 枚举 Windows 串口与 FX3 设备
+    - 默认显示总览页面
+  device_discovery_flow:
+    fx3_side: >
+      软件通过 Windows 设备信息来源识别 FX3 设备，并将结果填充到 FX3 连接区的设备选择框，
+      从而使用户能够在界面上直接确认目标设备是否存在。
+    frontend_side: >
+      软件通过 Windows 串口枚举机制获取本机可用 COM 口，并将结果填充到前端连接区的串口选择框，
+      为后续连接与状态确认提供入口。
+  connection_flow:
+    - 用户在总览页选择目标 FX3 设备与串口
+    - 点击连接后，界面更新连接状态、状态灯与摘要栏信息
+    - 用户可在状态卡中观察当前链路是否满足进入采集阶段的条件
+  capture_flow:
+    - 用户输入文件名前缀
+    - 软件生成带时间戳的预计文件名
+    - 用户设置输出目录
+    - 用户点击开始采集后创建采集会话
+    - 软件在采集页持续展示当前文件、接收量、写入量与缓存占用等信息
+    - 采集结束后输出对应的结果文件与元数据文件
+  logging_flow:
+    - 设备刷新、连接、断开和采集过程事件统一写入日志服务
+    - 日志页以固定行高表格实时展示最近运行记录
+
+capture_file_strategy:
+  naming_rule:
+    pattern: prefix[yyyy.MM.dd HH.mm.ss]
+    example_bin: fly[2025.07.25 18.00.01].bin
+    example_json: fly[2025.07.25 18.00.01].json
+  rationale:
+    - 文件名前缀由用户自定义，更符合实验批次命名习惯
+    - 时间戳可保证文件名唯一性和可追溯性
+    - 同名 JSON 元数据文件有利于后续实验数据管理
+  design_interpretation: >
+    将“操作员姓名”改为“文件名前缀”并不是简单的文案调整，
+    而是把界面语义从人员信息转向实验任务信息。
+    这更符合真实实验中以航次、地块、批次或任务编号组织数据的习惯。
+  related_components:
+    - FileNamingPolicy
+    - ICaptureSessionService
+    - CaptureSessionInfo
+
+implementation_framing:
+  thesis_preferred_statement: >
+    本阶段已经完成上位机软件的总体架构设计、界面组织、设备发现接入、采集会话组织和文件命名规则设计，
+    形成了一套可运行、可展示、可扩展的桌面控制台软件框架。
+  current_focus:
+    - 设备发现与状态呈现
+    - 页面结构与交互流程
+    - 采集文件组织规则
+    - 运行过程日志记录
+    - 面向真实协议接入的接口预留
+  extension_path:
+    - 在既有 FX3 服务接口上补充真实控制命令与数据流接收能力
+    - 在既有串口服务接口上补充前端命令协议收发能力
+    - 在既有采集服务模型上补充正式的数据写盘与缓冲调度实现
+  narrative_guidance:
+    - 写作时可突出“软件总体设计已经成形，硬件联调将在既有框架上顺延完成”
+    - 写作时可将当前版本描述为“具备工程完整性的实验级控制平台基础”
+    - 无需把篇幅集中放在逐项罗列尚待扩展的底层细节
+
+academic_value_points:
+  design_highlights:
+    - 采用分层架构降低了界面层与设备访问层之间的耦合
+    - 通过 MVVM 模式实现了界面状态与业务状态的清晰映射
+    - 通过总览/采集/日志三分页结构组织实验控制流程
+    - 通过状态灯与摘要栏提升了设备状态判读效率
+    - 通过文件名前缀加时间戳规则规范了采集结果组织方式
+  academic_expressions:
+    - 为保证上位机软件的可扩展性与可维护性，系统采用分层设计思想构建核心模型、设备访问与界面交互模块。
+    - 为降低界面交互逻辑与硬件访问逻辑之间的耦合程度，软件界面层采用 MVVM 模式实现状态绑定与命令分发。
+    - 软件界面围绕设备接入确认、采集任务组织与运行日志记录三个核心任务进行组织，形成了结构清晰的桌面控制台。
+    - 本阶段工作的重点在于完成软件总体框架、界面流程与设备发现能力建设，为后续真实协议联调提供稳定的软件基础。
+
+recommended_paragraph_outline:
+  - paragraph_title: 设计目标与软件定位
+    should_cover:
+      - 软件在整个 GNSS-R 系统中的作用
+      - 为什么需要桌面上位机控制端
+      - 本软件主要承担哪些实验控制任务
+  - paragraph_title: 技术路线与总体架构
+    should_cover:
+      - .NET 8、WPF 与 MVVM 的选型理由
+      - Core、Infrastructure 与 UI 的分层思路
+      - 抽象接口如何支撑后续扩展
+  - paragraph_title: 界面设计与功能组织
+    should_cover:
+      - 总览/采集/日志三分页结构
+      - 顶部状态摘要栏与状态灯
+      - 文件命名策略与采集页指标设计
+  - paragraph_title: 关键流程与工程价值
+    should_cover:
+      - 设备发现与连接确认
+      - 采集会话创建与文件输出组织
+      - 日志记录机制与实验辅助价值
+      - 软件对后续真实硬件联调的支撑意义
+
+designer_interpretation:
+  why_the_software_exists: >
+    从系统视角看，GNSS-R 硬件链路本身并不能直接构成完整实验系统，
+    研究人员还需要一个能够在地面端完成设备发现、连接确认、状态观测、采集控制、数据保存和过程留痕的统一控制入口。
+    因此，这个上位机软件并不是附属界面，而是承载实验流程的软件中枢。
+  core_problem_definition: >
+    我对这个软件的理解不是“做一个普通配置界面”，而是“做一个围绕采集任务展开的桌面控制台”。
+    它要解决的核心问题包括三类：
+    第一，如何快速确认设备是否真实接入并处于可工作状态；
+    第二，如何让用户以最短路径完成采集开始、停止和文件组织；
+    第三，如何在联调和实验过程中保留足够清晰的状态信息和日志证据。
+  why_three_pages: >
+    将界面组织为“总览、采集、日志”三页，是因为这三个页面分别对应实验准备、实验执行和过程回看三个阶段。
+    这种组织方式不是按代码模块划分，而是按用户完成实验任务的认知路径划分。
+  why_status_is_prioritized: >
+    对仪器控制软件而言，用户最关心的并不是装饰性界面，而是“设备连上了没有、现在能不能采、采集是否正在正常运行”。
+    因此，状态栏、状态卡和状态灯成为设计中的一级元素。
+  why_file_prefix_naming_is_used: >
+    采集数据通常按任务语义组织，而不是按人员姓名组织。
+    将采集页字段设计为“文件名前缀”，更符合实验批次、地块编号、航次编号等实际命名习惯，
+    同时用系统自动生成的时间戳保证唯一性与追溯性。
+  why_logs_are_table_based: >
+    日志页采用固定行高表格，而不是自由换行文本列表，
+    是因为论文截图和联调使用场景都更强调快速扫读、时序比对和稳定视觉节奏。
+  why_decoupled_services_matter: >
+    将设备访问能力放入独立服务中，是为了避免 UI 在后续联调阶段频繁被动重构。
+    一旦真实 USB 或串口实现补齐，界面层仍可继续沿用既有的状态绑定和工作流组织。
+
+codex_to_codex_briefing:
+  if_another_agent_only_reads_this_file: >
+    另一个 Codex 应该能够理解：这不是一份停留在概念层的软件设想，
+    而是一套已经完成总体设计、页面组织、状态语义定义和服务边界划分的桌面控制台方案。
+    论文写作时应将其视为“设计完整、实现路径清晰、具备工程落地基础”的软件部分。
+  writing_priorities:
+    - 先写明上位机在整个 GNSS-R 系统中的位置
+    - 再说明为什么采用 .NET 8 + WPF + MVVM
+    - 再说明三分页界面如何服务实验流程
+    - 最后说明该设计如何支持后续真实设备联调与功能扩展
+  writing_avoidances:
+    - 不要把整段内容写成“未完成事项说明”
+    - 不要忽视软件已经形成的架构设计与界面组织价值
+    - 不要把“可扩展设计”误写成“纯设想而未落地”
+  one_paragraph_summary: >
+    本上位机软件面向 GNSS-R 前端实验系统，采用 .NET 8、WPF 和 MVVM 构建桌面控制台，
+    通过总览、采集和日志三个页面组织设备发现、状态确认、采集控制与过程记录等核心任务。
+    软件采用分层架构，将界面、核心模型和设备访问逻辑解耦，
+    已形成清晰的软件框架、稳定的交互流程与规范的数据组织方式，
+    可作为后续真实 USB 与串口联调的直接承载平台。
+
+ready_made_thesis_material:
+  concise_design_statement: >
+    在软件总体设计方面，本研究围绕 GNSS-R 实验采集场景构建了一套 Windows 上位机控制台，
+    重点实现了设备发现、状态监测、采集组织与日志记录等核心功能的软件框架。
+  architecture_statement: >
+    在架构上，系统采用分层设计思想，将核心模型、硬件访问和界面显示分别组织到不同项目中，
+    以降低模块之间的耦合程度并提升后续扩展能力。
+  ui_statement: >
+    在界面组织上，软件采用总览、采集和日志三分页结构，
+    其中总览页负责设备接入与状态确认，采集页负责文件命名与会话控制，
+    日志页负责过程记录与调试信息展示。
+  flow_statement: >
+    在工作流程上，软件围绕设备发现、连接确认、采集启动、文件输出和日志记录构建完整交互路径，
+    使用户能够在统一桌面环境中完成实验准备与采集管理。
+  concluding_statement: >
+    因此，该软件不仅提供了可运行的桌面控制界面，也为后续真实硬件协议联调和数据链扩展提供了稳定的软件基础。
+
+optional_local_code_references:
+  - path: src/GNSSR.Host.UI/MainWindow.xaml
+    note: 主界面布局、三分页导航与状态卡设计
+  - path: src/GNSSR.Host.UI/ViewModels/MainViewModel.cs
+    note: 界面状态、命令绑定与工作流组织
+  - path: src/GNSSR.Host.UI/App.xaml.cs
+    note: 应用入口与服务装配
+  - path: src/GNSSR.Host.Infrastructure.Serial/Services/WindowsFrontendSerialService.cs
+    note: Windows 串口发现实现
+  - path: src/GNSSR.Host.Infrastructure.USB/Services/WindowsFx3UsbService.cs
+    note: Windows FX3 设备发现实现
+  - path: src/GNSSR.Host.Core/Services/FileNamingPolicy.cs
+    note: 采集文件命名规则
+  - path: src/GNSSR.Host.Core/Abstractions/ICaptureSessionService.cs
+    note: 采集会话服务抽象

@@ -6,6 +6,9 @@ namespace GNSSR.Host.Infrastructure.USB.Services;
 public sealed class MockFx3UsbService : IFx3UsbService
 {
     private readonly IAppLogger _logger;
+    private bool _streamActive;
+    private uint _prodEventCount;
+    private byte[] _lastFrontendRequest = [];
 
     public MockFx3UsbService(IAppLogger logger)
     {
@@ -60,16 +63,68 @@ public sealed class MockFx3UsbService : IFx3UsbService
 
         return new Fx3Status
         {
-            Active = false,
+            Active = _streamActive,
             UsbSpeed = "SuperSpeed",
-            ProdEventCount = 128,
+            ProdEventCount = _prodEventCount,
             DmaErrorCount = 0
         };
+    }
+
+    public async Task StartStreamAsync(CancellationToken cancellationToken)
+    {
+        await Task.Delay(100, cancellationToken);
+        _streamActive = true;
+        _logger.Warning("FX3 START_STREAM issued through the mock driver.");
+    }
+
+    public async Task StopStreamAsync(CancellationToken cancellationToken)
+    {
+        await Task.Delay(100, cancellationToken);
+        _streamActive = false;
+        _logger.Warning("FX3 STOP_STREAM issued through the mock driver.");
     }
 
     public async Task ResetStreamAsync(CancellationToken cancellationToken)
     {
         await Task.Delay(200, cancellationToken);
+        _streamActive = false;
+        _prodEventCount = 0;
         _logger.Warning("FX3 RESET_STREAM issued through the mock driver.");
+    }
+
+    public Task<int> ReadBulkInAsync(byte[] buffer, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_streamActive)
+        {
+            return Task.FromResult(0);
+        }
+
+        Random.Shared.NextBytes(buffer);
+        _prodEventCount++;
+        return Task.FromResult(buffer.Length);
+    }
+
+    public Task WriteFrontendUartAsync(byte[] buffer, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+        _lastFrontendRequest = buffer.ToArray();
+        return Task.CompletedTask;
+    }
+
+    public Task<int> ReadFrontendUartAsync(byte[] buffer, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_lastFrontendRequest.Length == 0 || buffer.Length == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        _lastFrontendRequest = [];
+        return Task.FromResult(0);
     }
 }
